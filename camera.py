@@ -55,10 +55,10 @@ class Camera:
         self._thread.start()
 
     def _capture_loop(self):
-        retry_delay = 2.0
+        fail_count = 0
         while self.is_running:
             if self.cap is None or not self.cap.isOpened():
-                time.sleep(retry_delay)
+                time.sleep(1.0)
                 try:
                     if isinstance(self.device, int):
                         self.cap = cv2.VideoCapture(self.device)
@@ -66,16 +66,35 @@ class Camera:
                         self.cap = cv2.VideoCapture(self.device)
                     self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
                     self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                except Exception:
+                except Exception as e:
+                    print(f"Lỗi mở camera: {e}")
                     continue
 
-            success, frame = self.cap.read()
+            try:
+                success, frame = self.cap.read()
+            except Exception:
+                success = False
+                frame = None
+
             if success and frame is not None:
+                fail_count = 0
                 with self._lock:
                     self.frame = frame
+                time.sleep(0.01)  # Giảm tải CPU
             else:
-                # Mất tín hiệu frame, tạm nghỉ trước khi đọc lại
-                time.sleep(0.05)
+                fail_count += 1
+                # Nếu mất tín hiệu quá 15 lần (~1.5s) -> Đứt mạng hoặc camera tắt, tự kết nối lại
+                if fail_count >= 15:
+                    print(f"⚠️ Mất kết nối stream camera ({self.device}). Đang tự động kết nối lại...", flush=True)
+                    try:
+                        self.cap.release()
+                    except Exception:
+                        pass
+                    self.cap = None
+                    fail_count = 0
+                    time.sleep(1.0)
+                else:
+                    time.sleep(0.05)
 
     def get_latest_frame(self) -> Optional[np.ndarray]:
         """Lấy bản copy frame mới nhất từ camera."""

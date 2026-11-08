@@ -43,46 +43,28 @@ class AntiSpoofDetector:
         self, img: np.ndarray, bbox: list
     ) -> Tuple[np.ndarray, bool]:
         """
-        Cắt vùng mặt với tỉ lệ mở rộng 2.7x xung quanh tâm khuôn mặt.
+        Cắt vùng mặt với tỉ lệ mở rộng xung quanh khuôn mặt.
         bbox: [x, y, w, h]
         """
         h_img, w_img = img.shape[:2]
         x, y, w, h = bbox
 
-        # Tọa độ tâm
+        # Mở rộng bounding box theo tỉ lệ thích hợp (tối ưu cho MiniFASNet)
+        scale = 2.0
         cx = x + w / 2.0
         cy = y + h / 2.0
 
-        # Kích thước mở rộng
-        size = int(max(w, h) * self.scale_factor)
+        nw = w * scale
+        nh = h * scale
 
-        x1 = int(cx - size / 2.0)
-        y1 = int(cy - size / 2.0)
-        x2 = x1 + size
-        y2 = y1 + size
+        x1 = max(0, int(cx - nw / 2.0))
+        y1 = max(0, int(cy - nh / 2.0))
+        x2 = min(w_img - 1, int(cx + nw / 2.0))
+        y2 = min(h_img - 1, int(cy + nh / 2.0))
 
-        # Padding nếu bbox mở rộng ra ngoài frame
-        pad_x1 = max(0, -x1)
-        pad_y1 = max(0, -y1)
-        pad_x2 = max(0, x2 - w_img)
-        pad_y2 = max(0, y2 - h_img)
-
-        # Cắt trong phạm vi ảnh
-        crop_x1 = max(0, x1)
-        crop_y1 = max(0, y1)
-        crop_x2 = min(w_img, x2)
-        crop_y2 = min(h_img, y2)
-
-        cropped = img[crop_y1:crop_y2, crop_x1:crop_x2]
-        if cropped.size == 0:
+        cropped = img[y1 : y2 + 1, x1 : x2 + 1]
+        if cropped.size == 0 or cropped.shape[0] < 10 or cropped.shape[1] < 10:
             return np.zeros((self.input_size[1], self.input_size[0], 3), dtype=np.uint8), False
-
-        # Thêm viền đen (padding) nếu chạm mép ngoài
-        if pad_x1 > 0 or pad_y1 > 0 or pad_x2 > 0 or pad_y2 > 0:
-            cropped = cv2.copyMakeBorder(
-                cropped, pad_y1, pad_y2, pad_x1, pad_x2,
-                cv2.BORDER_CONSTANT, value=[0, 0, 0]
-            )
 
         resized = cv2.resize(cropped, self.input_size)
         return resized, True
@@ -100,10 +82,11 @@ class AntiSpoofDetector:
         if not ok:
             return False, 0.0, "INVALID_CROP"
 
-        # Tiền xử lý: BGR, tỉ lệ [0, 1], shape [1, 3, 80, 80]
+        # Tiền xử lý: BGR, dải pixel [0, 255] chuẩn của MiniFASNet, shape [1, 3, 80, 80]
+        # LƯU Ý QUAN TRỌNG: Model được train trên thang [0..255], TUYỆT ĐỐI KHÔNG chia cho 255.0
         blob = cv2.dnn.blobFromImage(
             cropped,
-            scalefactor=1.0 / 255.0,
+            scalefactor=1.0,
             size=self.input_size,
             mean=(0, 0, 0),
             swapRB=False,

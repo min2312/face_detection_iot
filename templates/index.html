@@ -466,6 +466,16 @@
       }
     }
 
+    // Tự động kết nối lại luồng video nếu bị gián đoạn mạng (Chống đen màn hình)
+    const videoImg = document.querySelector('.video-container img');
+    if (videoImg) {
+      videoImg.onerror = () => {
+        setTimeout(() => {
+          videoImg.src = '/video_feed?t=' + Date.now();
+        }, 1000);
+      };
+    }
+
     // Polling định kỳ mỗi 800ms
     updateStatus();
     setInterval(updateStatus, 800);

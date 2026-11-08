@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 import threading
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 import cv2
 import numpy as np
 
@@ -171,34 +171,28 @@ class LockerManager:
                 if self.current_state != LockerState.DEPOSIT_SCANNING:
                     return
 
-            frame = self.camera.get_latest_frame()
-            if frame is None:
-                time.sleep(0.05)
+            analysis = self.engine.get_latest_analysis()
+            if not analysis or not analysis.get("has_face"):
+                time.sleep(0.08)
                 continue
 
-            _, results = self.engine.analyze_frame(frame)
-            if not results:
-                time.sleep(0.05)
-                continue
-
-            face = results[0]  # Lấy khuôn mặt đầu tiên
-            if not face["is_real"]:
+            if not analysis["is_real"]:
                 consecutive_real = 0
-                self.state_message = f"🚨 CẢNH BÁO: Phát hiện ảnh giả mạo ({face['live_label']})! Vui lòng dùng mặt thật."
+                self.state_message = f"🚨 CẢNH BÁO: Phát hiện ảnh giả mạo ({analysis['live_label']})! Vui lòng dùng mặt thật."
                 self.gpio.flash_red(1.0)
-                # Ghi log phát hiện giả mạo
-                self._save_event_photo(frame, "SPOOF_DEPOSIT")
-                time.sleep(0.3)
+                if analysis.get("raw_frame") is not None:
+                    self._save_event_photo(analysis["raw_frame"], "SPOOF_DEPOSIT")
+                time.sleep(0.4)
                 continue
 
             # Mặt thật (Real Face)
             consecutive_real += 1
-            if consecutive_real >= 3 and face["feature"] is not None:
-                best_face_data = face
-                best_frame = frame.copy()
+            if consecutive_real >= 2 and analysis["feature"] is not None:
+                best_face_data = analysis
+                best_frame = analysis["raw_frame"]
                 break
 
-            time.sleep(0.05)
+            time.sleep(0.08)
 
         with self._lock:
             if self.current_state != LockerState.DEPOSIT_SCANNING:
@@ -266,38 +260,34 @@ class LockerManager:
                 if self.current_state != LockerState.WITHDRAW_SCANNING:
                     return
 
-            frame = self.camera.get_latest_frame()
-            if frame is None:
-                time.sleep(0.05)
+            analysis = self.engine.get_latest_analysis()
+            if not analysis or not analysis.get("has_face"):
+                time.sleep(0.08)
                 continue
 
-            _, results = self.engine.analyze_frame(frame, target_embedding=target_emb, target_name=occupant_name)
-            if not results:
-                time.sleep(0.05)
-                continue
-
-            face = results[0]
-            if not face["is_real"]:
+            if not analysis["is_real"]:
                 consecutive_match = 0
-                self.state_message = f"🚨 CẢNH BÁO: Phát hiện ảnh giả mạo ({face['live_label']})! Từ chối mở cửa."
+                self.state_message = f"🚨 CẢNH BÁO: Phát hiện ảnh giả mạo ({analysis['live_label']})! Từ chối mở cửa."
                 self.gpio.flash_red(1.0)
-                self._save_event_photo(frame, "SPOOF_WITHDRAW")
-                time.sleep(0.3)
+                if analysis.get("raw_frame") is not None:
+                    self._save_event_photo(analysis["raw_frame"], "SPOOF_WITHDRAW")
+                time.sleep(0.4)
                 continue
 
             # Mặt thật -> Kiểm tra độ tương đồng
-            if face["is_match"]:
+            if analysis.get("is_match"):
                 consecutive_match += 1
                 if consecutive_match >= 2:
-                    matched_face = face
-                    matched_frame = frame.copy()
+                    matched_face = analysis
+                    matched_frame = analysis["raw_frame"]
                     break
             else:
                 consecutive_match = 0
-                self.state_message = f"❌ Sai khuôn mặt (Độ khớp: {face['sim_score']:.2f}). Không đúng người gửi!"
+                sim = analysis.get("sim_score", 0.0)
+                self.state_message = f"❌ Sai khuôn mặt (Độ khớp: {sim:.2f}). Không đúng người gửi!"
                 self.gpio.flash_red(0.5)
 
-            time.sleep(0.05)
+            time.sleep(0.08)
 
         with self._lock:
             if self.current_state != LockerState.WITHDRAW_SCANNING:

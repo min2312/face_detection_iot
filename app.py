@@ -12,10 +12,12 @@ import json
 import os
 import signal
 import sys
+import threading
 import time
 from pathlib import Path
 
 import cv2
+import numpy as np
 from flask import (
     Flask,
     Response,
@@ -59,7 +61,51 @@ camera = Camera(os.environ.get("CAMERA_DEVICE", "0"))
 engine = FaceEngine(models_dir=str(BASE_DIR / "models"))
 manager = LockerManager(camera=camera, engine=engine, gpio=gpio, db=db, locker_id=1)
 
+# Khởi động luồng đọc camera
 camera.start()
+
+# ── LUỒNG XỬ LÝ VIDEO & AI DUY NHẤT (SINGLE PIPELINE) ─────────────────
+def _video_processing_worker():
+    """Luồng nền duy nhất: Đọc camera -> Xử lý AI -> Nén JPEG lưu cache (Chống nghẽn & chống đen màn hình)."""
+    while True:
+        try:
+            frame = camera.get_latest_frame()
+            if frame is None:
+                # Nếu mất kết nối, tạo frame đệm thông báo
+                placeholder = np.zeros((480, 640, 3), dtype=np.uint8)
+                cv2.putText(
+                    placeholder, "Dang ket noi camera...", (150, 240),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 255), 2
+                )
+                ret, jpeg = cv2.imencode(".jpg", placeholder, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
+                if ret:
+                    with engine._cache_lock:
+                        engine.latest_jpeg = jpeg.tobytes()
+                time.sleep(0.5)
+                continue
+
+            is_active = (manager.current_state in (LockerState.DEPOSIT_SCANNING, LockerState.WITHDRAW_SCANNING))
+            target_emb = None
+            target_name = ""
+            if manager.current_state == LockerState.WITHDRAW_SCANNING:
+                locker = db.get_locker(manager.locker_id)
+                target_emb = locker.get("embedding")
+                target_name = locker.get("occupant_name", "")
+
+            engine.process_and_cache_frame(
+                frame,
+                is_active_scanning=is_active,
+                target_embedding=target_emb,
+                target_name=target_name,
+                system_status_text=manager.current_state
+            )
+            time.sleep(0.03)  # Giới hạn ~30 FPS
+        except Exception as e:
+            print(f"Lỗi worker camera: {e}")
+            time.sleep(0.1)
+
+threading.Thread(target=_video_processing_worker, daemon=True).start()
+
 print("✅ Toàn bộ dịch vụ đã khởi động thành công!")
 print("=" * 60)
 
@@ -67,42 +113,21 @@ print("=" * 60)
 # ── VIDEO STREAMING (MJPEG) ──────────────────────────────────────────
 
 def generate_video_stream():
-    """Tạo luồng MJPEG hiển thị trực tiếp camera có khung nhận diện và chống giả mạo."""
+    """Tạo luồng MJPEG hiển thị trực tiếp camera (Chỉ truyền JPEG đã cache, cực nhẹ và không bao giờ bị đơ)."""
     while True:
-        frame = camera.get_latest_frame()
-        if frame is None:
-            time.sleep(0.04)
-            continue
+        try:
+            jpeg = engine.get_latest_jpeg()
+            if jpeg is None:
+                time.sleep(0.04)
+                continue
 
-        # Lấy thông tin mục tiêu so khớp nếu đang trong chế độ Lấy đồ
-        target_emb = None
-        target_name = ""
-        if manager.current_state == LockerState.WITHDRAW_SCANNING:
-            locker = db.get_locker(manager.locker_id)
-            target_emb = locker.get("embedding")
-            target_name = locker.get("occupant_name", "")
-
-        annotated, _ = engine.analyze_frame(frame, target_embedding=target_emb, target_name=target_name)
-
-        # Vẽ banner trạng thái nhỏ phía trên
-        h, w = annotated.shape[:2]
-        banner = annotated.copy()
-        cv2.rectangle(banner, (0, 0), (w, 36), (20, 20, 20), -1)
-        cv2.addWeighted(banner, 0.75, annotated, 0.25, 0, annotated)
-
-        status_text = f"Trang thai: {manager.current_state}"
-        cv2.putText(annotated, status_text, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-
-        # Encode JPEG
-        ret, jpeg = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
-        if not ret:
-            time.sleep(0.03)
-            continue
-
-        frame_bytes = jpeg.tobytes()
-        yield (b"--frame\r\n"
-               b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n")
-        time.sleep(0.033)  # Giới hạn ~30 FPS
+            yield (b"--frame\r\n"
+                   b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n")
+            time.sleep(0.033)
+        except (GeneratorExit, StopIteration):
+            break
+        except Exception:
+            time.sleep(0.05)
 
 
 @app.route("/video_feed")
