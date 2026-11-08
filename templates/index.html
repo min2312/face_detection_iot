@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Locker - Tủ Đồ Thông Minh Nhận Diện Khuôn Mặt</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --dark: #0f172a;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-muted: #64748b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 16px; min-height: 100vh; display: flex; flex-direction: column; }
+    
+    header {
+      background: var(--card-bg);
+      padding: 16px 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .title-group h1 { font-size: 1.4rem; font-weight: 700; color: var(--dark); display: flex; align-items: center; gap: 8px; }
+    .title-group p { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* Hardware Status Bar */
+    .status-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+    }
+    .status-pill.closed, .status-pill.locked, .status-pill.available { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+    .status-pill.open, .status-pill.unlocked { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+    .status-pill.occupied { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+
+    /* Main Grid */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 16px;
+      flex: 1;
+    }
+
+    @media (max-width: 900px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Video Panel */
+    .panel {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+
+    .video-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .video-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Kiosk Action Panel */
+    .actions-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Live Instruction Box */
+    .instruction-card {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      color: white;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+    }
+    .instruction-card .state-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 4px 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.15);
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    .instruction-card .message {
+      font-size: 1.15rem;
+      font-weight: 600;
+      line-height: 1.5;
+      min-height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Big Action Buttons */
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .btn-big {
+      border: none;
+      padding: 18px 24px;
+      border-radius: 10px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      transition: all 0.2s ease;
+      color: white;
+    }
+
+    .btn-big:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .btn-big:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-deposit { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+    .btn-withdraw { background: linear-gradient(135deg, #059669, #047857); }
+    .btn-cancel { background: #64748b; font-size: 0.95rem; padding: 12px; }
+
+    /* Locker Info Card */
+    .locker-info-card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.88rem;
+    }
+    .locker-info-row { display: flex; justify-content: space-between; padding: 4px 0; }
+    .locker-info-row strong { color: var(--dark); }
+
+    /* Simulation Control */
+    .simulation-box {
+      margin-top: auto;
+      background: #fffbeb;
+      border: 1px dashed #f59e0b;
+      padding: 12px;
+      border-radius: 8px;
+    }
+    .simulation-box h4 { font-size: 0.82rem; color: #b45309; margin-bottom: 8px; display: flex; justify-content: space-between; }
+    .sim-buttons { display: flex; gap: 8px; }
+    .sim-btn {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #f59e0b;
+      background: white;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.8rem;
+      cursor: pointer;
+      color: #b45309;
+    }
+    .sim-btn:hover { background: #fef3c7; }
+
+    /* Footer */
+    footer {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    footer a { color: var(--primary); text-decoration: none; font-weight: 600; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="title-group">
+      <h1>🔐 HỆ THỐNG SMART LOCKER IOT</h1>
+      <p>Nhận diện khuôn mặt (SFace) & Chống giả mạo ảnh màn hình/in (MiniFASNet)</p>
+    </div>
+
+    <!-- Thanh trạng thái phần cứng thời gian thực -->
+    <div class="status-bar">
+      <div id="door-status-pill" class="status-pill closed">
+        🧲 Cửa (MC-38): <strong id="door-text">CỬA ĐÓNG</strong>
+      </div>
+      <div id="lock-status-pill" class="status-pill locked">
+        ⚙️ Ổ khóa (Servo): <strong id="lock-text">ĐÃ KHÓA</strong>
+      </div>
+      <div id="locker-status-pill" class="status-pill available">
+        📦 Tủ số 1: <strong id="locker-text">TRỐNG</strong>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <div class="main-grid">
+    
+    <!-- Cột trái: Camera Live Stream -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>📷 Camera Trực Tiếp</span>
+        <span style="font-size:0.75rem; color:var(--text-muted);">Real-time Face & Anti-Spoof Detection</span>
+      </div>
+      <div class="video-container">
+        <img src="/video_feed" alt="Video Camera Feed">
+      </div>
+    </div>
+
+    <!-- Cột phải: Kiosk Thao Tác & Hướng Dẫn -->
+    <div class="panel actions-panel">
+      <div class="panel-title">
+        <span>Bảng Điều Khiển Khách Hàng</span>
+      </div>
+
+      <!-- Hộp hướng dẫn trực quan -->
+      <div class="instruction-card">
+        <div id="state-badge" class="state-badge">CHẾ ĐỘ CHỜ (SẴN SÀNG)</div>
+        <div id="state-message" class="message">
+          Hệ thống sẵn sàng. Vui lòng bấm chọn Cất đồ hoặc Lấy đồ.
+        </div>
+      </div>
+
+      <!-- Các nút thao tác lớn -->
+      <div class="btn-group">
+        <button id="btn-deposit" class="btn-big btn-deposit" onclick="promptDeposit()">
+          <span>📦</span>
+          <span>BẮT ĐẦU CẤT ĐỒ</span>
+        </button>
+
+        <button id="btn-withdraw" class="btn-big btn-withdraw" onclick="triggerWithdraw()">
+          <span>🔑</span>
+          <span>QUÉT MẶT LẤY ĐỒ</span>
+        </button>
+
+        <button id="btn-cancel" class="btn-big btn-cancel" onclick="triggerCancel()" style="display:none;">
+          <span>❌</span>
+          <span>HỦY THAO TÁC / QUAY LẠI</span>
+        </button>
+      </div>
+
+      <!-- Thông tin ngăn tủ -->
+      <div class="locker-info-card">
+        <div class="locker-info-row">
+          <span>Ngăn tủ:</span>
+          <strong id="card-locker-name">Tủ số 1</strong>
+        </div>
+        <div class="locker-info-row">
+          <span>Tình trạng:</span>
+          <strong id="card-locker-status">Sẵn sàng</strong>
+        </div>
+        <div id="occupant-row" class="locker-info-row" style="display:none;">
+          <span>Người gửi đồ:</span>
+          <strong id="card-occupant-name">-</strong>
+        </div>
+        <div id="deposit-time-row" class="locker-info-row" style="display:none;">
+          <span>Giờ gửi:</span>
+          <strong id="card-deposit-time">-</strong>
+        </div>
+      </div>
+
+      <!-- Bảng mô phỏng Cảm biến từ (Dành cho việc test trên PC hoặc trước khi cắm Pi) -->
+      <div id="sim-box" class="simulation-box">
+        <h4>
+          <span>🛠️ Test Mô Phỏng Cảm Biến Từ (MC-38)</span>
+          <span style="font-weight:normal; font-size:0.75rem;">(Dùng khi test không có Pi)</span>
+        </h4>
+        <div class="sim-buttons">
+          <button class="sim-btn" onclick="simulateDoor('OPEN')">🚪 Giả lập Mở Cửa (Hở từ)</button>
+          <button class="sim-btn" onclick="simulateDoor('CLOSED')">🚪 Giả lập Đóng Cửa (Chạm từ)</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <span>Hệ thống IoT Điều khiển Cửa Tủ Thông Minh &bull; OpenCV YuNet + SFace + MiniFASNet</span>
+    <a href="/admin">⚙️ Đăng nhập Quản Trị Viên (Admin) &rarr;</a>
+  </footer>
+
+  <script>
+    let currentState = "IDLE";
+
+    // ── CẬP NHẬT TRẠNG THÁI LIÊN TỤC ──────────────────────────────
+    async function updateStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        
+        currentState = data.state;
+
+        // Cập nhật thẻ trạng thái cảm biến từ MC-38
+        const doorPill = document.getElementById('door-status-pill');
+        const doorText = document.getElementById('door-text');
+        if (data.door_state === 'OPEN') {
+          doorPill.className = 'status-pill open';
+          doorText.textContent = 'CỬA ĐANG MỞ';
+        } else {
+          doorPill.className = 'status-pill closed';
+          doorText.textContent = 'CỬA ĐÓNG';
+        }
+
+        // Cập nhật thẻ Servo
+        const lockPill = document.getElementById('lock-status-pill');
+        const lockText = document.getElementById('lock-text');
+        if (data.lock_state === 'UNLOCKED') {
+          lockPill.className = 'status-pill unlocked';
+          lockText.textContent = 'ĐÃ MỞ KHÓA';
+        } else {
+          lockPill.className = 'status-pill locked';
+          lockText.textContent = 'ĐÃ KHÓA';
+        }
+
+        // Cập nhật trạng thái Ngăn tủ
+        const lockerPill = document.getElementById('locker-status-pill');
+        const lockerText = document.getElementById('locker-text');
+        const occupantRow = document.getElementById('occupant-row');
+        const depositTimeRow = document.getElementById('deposit-time-row');
+
+        if (data.locker.status === 'OCCUPIED') {
+          lockerPill.className = 'status-pill occupied';
+          lockerText.textContent = 'ĐANG CÓ ĐỒ';
+          document.getElementById('card-locker-status').textContent = 'Đang có đồ';
+          occupantRow.style.display = 'flex';
+          depositTimeRow.style.display = 'flex';
+          document.getElementById('card-occupant-name').textContent = data.locker.occupant_name || 'Người dùng';
+          document.getElementById('card-deposit-time').textContent = data.locker.deposit_time || '-';
+        } else {
+          lockerPill.className = 'status-pill available';
+          lockerText.textContent = 'TRỐNG';
+          document.getElementById('card-locker-status').textContent = 'Trống (Sẵn sàng)';
+          occupantRow.style.display = 'none';
+          depositTimeRow.style.display = 'none';
+        }
+
+        // Cập nhật bảng chỉ dẫn
+        document.getElementById('state-badge').textContent = data.state;
+        document.getElementById('state-message').textContent = data.message;
+
+        // Hiển thị / Ẩn nút Hủy
+        const btnCancel = document.getElementById('btn-cancel');
+        const btnDeposit = document.getElementById('btn-deposit');
+        const btnWithdraw = document.getElementById('btn-withdraw');
+
+        if (data.state === 'IDLE') {
+          btnCancel.style.display = 'none';
+          btnDeposit.disabled = (data.locker.status === 'OCCUPIED');
+          btnWithdraw.disabled = (data.locker.status !== 'OCCUPIED');
+        } else {
+          btnCancel.style.display = 'flex';
+          btnDeposit.disabled = true;
+          btnWithdraw.disabled = true;
+        }
+
+      } catch (err) {
+        console.error("Lỗi cập nhật trạng thái:", err);
+      }
+    }
+
+    // ── HÀNH ĐỘNG CỦA NGƯỜI DÙNG ────────────────────────────────────
+    async function promptDeposit() {
+      const name = prompt("Vui lòng nhập tên người gửi (hoặc để trống để tự động tạo):", "Khách " + Math.floor(Math.random()*100));
+      if (name === null) return;
+
+      try {
+        const res = await fetch('/api/action/deposit', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ name: name })
+        });
+        const data = await res.json();
+        if (!data.ok) alert(data.message);
+        updateStatus();
+      } catch (e) {
+        alert("Lỗi kết nối server!");
+      }
+    }
+
+    async function triggerWithdraw() {
+      try {
+        const res = await fetch('/api/action/withdraw', { method: 'POST' });
+        const data = await res.json();
+        if (!data.ok) alert(data.message);
+        updateStatus();
+      } catch (e) {
+        alert("Lỗi kết nối server!");
+      }
+    }
+
+    async function triggerCancel() {
+      try {
+        await fetch('/api/action/cancel', { method: 'POST' });
+        updateStatus();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // ── MÔ PHỎNG CẢM BIẾN TỪ MC-38 ────────────────────────────────
+    async function simulateDoor(state) {
+      try {
+        await fetch('/api/simulate/door', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ state: state })
+        });
+        updateStatus();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // Polling định kỳ mỗi 800ms
+    updateStatus();
+    setInterval(updateStatus, 800);
+  </script>
+</body>
+</html>
+

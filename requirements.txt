@@ -1,0 +1,9 @@
+# Requirements cho Hệ thống Smart Locker Nhận diện Khuôn mặt (Tương thích Raspberry Pi & PC)
+Flask>=3.0.0
+numpy>=1.24.0,<3.0.0
+opencv-python-headless>=4.8.0
+
+# Thư viện điều khiển GPIO trên Raspberry Pi (chỉ cài trên Linux/Pi)
+gpiozero>=2.0
+lgpio>=0.2.2.0; sys_platform == 'linux'
+

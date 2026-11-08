@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Smart Locker Manager</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --dark: #0f172a;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-muted: #64748b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 20px; min-height: 100vh; }
+
+    header {
+      background: var(--card-bg);
+      padding: 16px 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    h1 { font-size: 1.35rem; color: var(--dark); display: flex; align-items: center; gap: 8px; }
+    .back-btn {
+      padding: 8px 16px;
+      background: #f1f5f9;
+      color: var(--text);
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+    }
+    .back-btn:hover { background: #e2e8f0; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Locker detail box */
+    .occupant-preview {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 16px;
+      background: #f8fafc;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .occupant-photo {
+      width: 90px;
+      height: 90px;
+      border-radius: 8px;
+      background: #e2e8f0;
+      object-fit: cover;
+      border: 1px solid var(--border);
+    }
+
+    .occupant-info p { margin: 4px 0; font-size: 0.9rem; }
+    .occupant-info strong { color: var(--dark); }
+
+    /* Control buttons */
+    .btn-row { display: flex; flex-direction: column; gap: 10px; }
+    .btn {
+      padding: 12px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: white;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn-unlock { background: var(--warning); }
+    .btn-lock { background: var(--primary); }
+    .btn-release { background: var(--danger); }
+    .btn-secondary { background: #64748b; font-size: 0.85rem; padding: 6px 12px; }
+
+    /* Audit Logs Table */
+    .table-container {
+      max-height: 480px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+
+    th {
+      background: #f1f5f9;
+      color: var(--text-muted);
+      padding: 10px 12px;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    tr:hover { background: #f8fafc; }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .tag-deposit { background: #dbeafe; color: #1d4ed8; }
+    .tag-withdraw { background: #dcfce7; color: #15803d; }
+    .tag-spoof { background: #fee2e2; color: #b91c1c; }
+    .tag-unauth { background: #fef3c7; color: #b45309; }
+    .tag-admin { background: #f3e8ff; color: #7e22ce; }
+
+    .thumb {
+      width: 38px;
+      height: 38px;
+      border-radius: 4px;
+      object-fit: cover;
+      cursor: pointer;
+    }
+
+    /* Diagnostics */
+    .diag-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--border);
+      font-size: 0.88rem;
+    }
+    .diag-item:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>⚙️ QUẢN TRỊ VIÊN - SMART LOCKER</h1>
+    <a href="/" class="back-btn">&larr; Quay lại Màn hình Kiosk</a>
+  </header>
+
+  <div class="grid">
+    
+    <!-- Cột trái: Điều khiển & Giám sát Tủ -->
+    <div>
+      <div class="card">
+        <div class="card-title">
+          <span>📦 Thông Tin Ngăn Tủ Số 1</span>
+          <span id="locker-status-tag" class="tag tag-deposit">ĐANG CẬP NHẬT</span>
+        </div>
+
+        <div id="occupant-box" class="occupant-preview">
+          <img id="occupant-img" class="occupant-photo" src="" alt="Chưa có ảnh" style="display:none;">
+          <div class="occupant-info">
+            <p>Người đang gửi: <strong id="occupant-name">Trống</strong></p>
+            <p>Thời gian gửi: <strong id="deposit-time">-</strong></p>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-unlock" onclick="adminUnlock()">
+            <span>🔓</span> MỞ KHÓA KHẨN CẤP (SERVO)
+          </button>
+          <button class="btn btn-lock" onclick="adminLock()">
+            <span>🔒</span> HẠ CHỐT KHÓA (SERVO)
+          </button>
+          <button class="btn btn-release" onclick="adminRelease()">
+            <span>🗑️</span> CƯỠNG CHẾ GIẢI PHÓNG TỦ
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>🛠️ Thông Số Phần Cứng GPIO</span>
+        </div>
+        <div class="diag-item">
+          <span>Môi trường chạy:</span>
+          <strong id="env-mode">-</strong>
+        </div>
+        <div class="diag-item">
+          <span>Trạng thái Cửa (MC-38):</span>
+          <strong id="diag-door">-</strong>
+        </div>
+        <div class="diag-item">
+          <span>Trạng thái Khóa (Servo):</span>
+          <strong id="diag-lock">-</strong>
+        </div>
+        <div class="diag-item">
+          <span>Chân Servo Pin:</span>
+          <strong>GPIO 18 (PWM)</strong>
+        </div>
+        <div class="diag-item">
+          <span>Chân Cảm biến MC-38:</span>
+          <strong>GPIO 23 (Pull-Up)</strong>
+        </div>
+        <div class="diag-item">
+          <span>Chân LED Cảnh báo:</span>
+          <strong>GPIO 17 (Red) & 27 (Green)</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cột phải: Bảng Nhật ký sự kiện (Audit Logs) -->
+    <div>
+      <div class="card">
+        <div class="card-title">
+          <span>📜 Nhật Ký Hoạt Động & Cảnh Báo Giả Mạo</span>
+          <button class="btn btn-secondary" onclick="clearLogs()">Xóa lịch sử</button>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Ảnh</th>
+                <th>Sự kiện</th>
+                <th>Người dùng</th>
+                <th>Liveness</th>
+                <th>Thời gian</th>
+                <th>Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody id="logs-body">
+              <tr><td colspan="6" style="text-align:center; color:#999;">Đang tải nhật ký...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+
+        // Cập nhật thẻ trạng thái ngăn tủ
+        const statusTag = document.getElementById('locker-status-tag');
+        const occName = document.getElementById('occupant-name');
+        const depTime = document.getElementById('deposit-time');
+        const occImg = document.getElementById('occupant-img');
+
+        if (data.locker.status === 'OCCUPIED') {
+          statusTag.className = 'tag tag-withdraw';
+          statusTag.textContent = 'ĐANG CÓ ĐỒ';
+          occName.textContent = data.locker.occupant_name || 'Không rõ';
+          depTime.textContent = data.locker.deposit_time || '-';
+          if (data.locker.photo_path) {
+            occImg.src = '/faces/' + data.locker.photo_path;
+            occImg.style.display = 'block';
+          } else {
+            occImg.style.display = 'none';
+          }
+        } else {
+          statusTag.className = 'tag tag-deposit';
+          statusTag.textContent = 'TỦ TRỐNG';
+          occName.textContent = 'Không có ai gửi';
+          depTime.textContent = '-';
+          occImg.style.display = 'none';
+        }
+
+        // Diagnostics
+        document.getElementById('env-mode').textContent = data.is_real_hardware ? 'Raspberry Pi (GPIO Real)' : 'Mô phỏng (PC Simulation)';
+        document.getElementById('diag-door').textContent = (data.door_state === 'OPEN') ? 'CỬA ĐANG MỞ 🔴' : 'CỬA ĐÃ ĐÓNG 🟢';
+        document.getElementById('diag-lock').textContent = (data.lock_state === 'UNLOCKED') ? 'ĐÃ MỞ KHÓA 🔓' : 'ĐÃ KHÓA CHỐT 🔒';
+
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadLogs() {
+      try {
+        const res = await fetch('/api/admin/logs?limit=40');
+        const logs = await res.json();
+        const tbody = document.getElementById('logs-body');
+
+        if (logs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#999;">Chưa có nhật ký ghi nhận nào.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = logs.map(l => {
+          let tagClass = 'tag-deposit';
+          let eventText = l.event_type;
+          if (l.event_type === 'DEPOSIT') { tagClass = 'tag-deposit'; eventText = 'CẤT ĐỒ'; }
+          else if (l.event_type === 'WITHDRAW') { tagClass = 'tag-withdraw'; eventText = 'LẤY ĐỒ'; }
+          else if (l.event_type.includes('SPOOF')) { tagClass = 'tag-spoof'; eventText = '🚨 GIẢ MẠO'; }
+          else if (l.event_type === 'UNAUTHORIZED') { tagClass = 'tag-unauth'; eventText = 'SAI MẶT'; }
+          else if (l.event_type === 'ADMIN_UNLOCK') { tagClass = 'tag-admin'; eventText = 'ADMIN MỞ'; }
+
+          const imgHtml = l.photo_path
+            ? `<a href="/faces/${l.photo_path}" target="_blank"><img class="thumb" src="/faces/${l.photo_path}"></a>`
+            : '<span style="color:#aaa;">-</span>';
+
+          const liveScoreText = l.liveness_score > 0 ? (l.liveness_score * 100).toFixed(0) + '%' : '-';
+
+          return `
+            <tr>
+              <td>${imgHtml}</td>
+              <td><span class="tag ${tagClass}">${eventText}</span></td>
+              <td><strong>${escapeHtml(l.user_name || '-')}</strong></td>
+              <td>${liveScoreText}</td>
+              <td>${escapeHtml(l.timestamp)}</td>
+              <td>${escapeHtml(l.note || '')}</td>
+            </tr>
+          `;
+        }).join('');
+
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function adminUnlock() {
+      if (!confirm("Xác nhận mở khóa Servo khẩn cấp?")) return;
+      const res = await fetch('/api/admin/unlock', { method: 'POST' });
+      const data = await res.json();
+      alert(data.message);
+      loadStatus();
+      loadLogs();
+    }
+
+    async function adminLock() {
+      const res = await fetch('/api/admin/lock', { method: 'POST' });
+      const data = await res.json();
+      alert(data.message);
+      loadStatus();
+    }
+
+    async function adminRelease() {
+      if (!confirm("Cảnh báo: Cưỡng chế xóa người gửi và giải phóng ngăn tủ này?")) return;
+      const res = await fetch('/api/admin/release', { method: 'POST' });
+      const data = await res.json();
+      alert(data.message);
+      loadStatus();
+      loadLogs();
+    }
+
+    async function clearLogs() {
+      if (!confirm("Xác nhận xóa sạch toàn bộ lịch sử log?")) return;
+      await fetch('/api/admin/logs', { method: 'DELETE' });
+      loadLogs();
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    }
+
+    loadStatus();
+    loadLogs();
+    setInterval(loadStatus, 1500);
+    setInterval(loadLogs, 5000);
+  </script>
+</body>
+</html>
+
