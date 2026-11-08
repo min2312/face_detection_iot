@@ -12,6 +12,7 @@ from typing import Callable, Dict, Optional
 # Kiểm tra thư viện trên Linux / Raspberry Pi
 USE_REAL_GPIO = False
 HAS_SMBUS = False
+HAS_SERVOKIT = False
 
 if sys.platform.startswith("linux"):
     try:
@@ -19,6 +20,12 @@ if sys.platform.startswith("linux"):
         USE_REAL_GPIO = True
     except (ImportError, RuntimeError):
         USE_REAL_GPIO = False
+
+    try:
+        from adafruit_servokit import ServoKit
+        HAS_SERVOKIT = True
+    except ImportError:
+        HAS_SERVOKIT = False
 
     try:
         import smbus2 as smbus
@@ -31,28 +38,41 @@ if sys.platform.startswith("linux"):
             HAS_SMBUS = False
 
 
-# ── DRIVER I2C NATIVE CHO MODULE PCA9685 (16-CHANNEL PWM) ────────────
+# ── DRIVER I2C CHO MODULE PCA9685 (HỖ TRỢ CẢ SERVOKIT & NATIVE SMBUS) ────────────
 
 class PCA9685Driver:
-    """Điều khiển PCA9685 qua I2C không cần thư viện cồng kềnh."""
+    """Điều khiển PCA9685 qua adafruit_servokit HOẶC native smbus2 I2C."""
     MODE1 = 0x00
     PRESCALE = 0xFE
     LED0_ON_L = 0x06
 
     def __init__(self, bus_num: int = 1, address: int = 0x40):
         self.address = address
+        self.kit = None
         self.bus = None
+
+        # 1. Thử dùng adafruit_servokit nếu có cài sẵn
+        if HAS_SERVOKIT:
+            try:
+                self.kit = ServoKit(channels=16, address=address)
+                print(f"✅ [PCA9685] Đã kết nối qua thư viện Adafruit ServoKit (Địa chỉ 0x{address:02X})")
+                return
+            except Exception as e:
+                print(f"⚠️ [PCA9685] Thử ServoKit không thành công ({e}), chuyển sang Native I2C smbus...")
+                self.kit = None
+
+        # 2. Dùng Driver Native I2C qua smbus2 (nhẹ, nhanh, không cần thư viện cồng kềnh)
         if HAS_SMBUS:
             try:
                 self.bus = smbus.SMBus(bus_num)
                 self._init_pca9685()
-                print(f"✅ [PCA9685] Đã kết nối module qua I2C Bus {bus_num} (Địa chỉ 0x{address:02X})")
+                print(f"✅ [PCA9685] Đã kết nối module qua Native I2C smbus Bus {bus_num} (Địa chỉ 0x{address:02X})")
             except Exception as e:
                 print(f"⚠️ [PCA9685 Warning] Không thể mở I2C: {e}. Sẽ dùng mô phỏng.")
                 self.bus = None
 
     def _init_pca9685(self):
-        """Khởi tạo tần số 50Hz chuẩn cho Servo."""
+        """Khởi tạo tần số 50Hz chuẩn cho Servo (khi chạy qua smbus native)."""
         if not self.bus:
             return
         # Sleep mode để set prescale
@@ -66,9 +86,18 @@ class PCA9685Driver:
     def set_servo_angle(self, channel: int, angle: float):
         """
         Quay servo ở kênh `channel` (0-15) tới góc `angle` (0° đến 180°).
-        - 0°: Then khóa hạ xuống (~1.0ms xung -> pulse 205)
-        - 90°: Mở chốt (~1.5ms xung -> pulse 307)
+        - 0°: Then khóa hạ xuống
+        - 90°: Mở chốt
         """
+        # Nếu đang dùng Adafruit ServoKit
+        if self.kit is not None:
+            try:
+                self.kit.servo[channel].angle = max(0, min(180, int(angle)))
+            except Exception as e:
+                print(f"❌ [ServoKit Error] Lỗi quay Servo kênh {channel}: {e}")
+            return
+
+        # Nếu đang dùng Driver Native smbus2
         if not self.bus:
             return
 
