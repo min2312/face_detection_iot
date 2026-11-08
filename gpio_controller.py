@@ -249,7 +249,7 @@ class HardwareController:
             print(f"🔓 [SERVO Tủ {locker_id}] MỞ KHÓA TỨC THÌ (PCA9685 Kênh {ch} -> Góc 90°)", flush=True)
 
             if self.is_real_hardware and self.pca:
-                self.pca.set_servo_angle(ch, 90.0)
+                self.pca.set_servo_angle(ch, 120.0)
 
             if self.green_led:
                 self.green_led.on()

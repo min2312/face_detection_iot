@@ -12,25 +12,17 @@ import numpy as np
 
 
 class Camera:
-    def __init__(self, device: Optional[Union[str, int]] = None):
-        # 1. Ưu tiên kiểm tra CAMERA_IP (Webcam phát từ Laptop qua Wi-Fi)
-        cam_ip = os.environ.get("CAMERA_IP", "").strip()
-        if cam_ip:
-            cam_port = os.environ.get("CAMERA_PORT", "5000").strip()
-            cam_ep = os.environ.get("CAMERA_ENDPOINT", "/video").strip()
-            if not cam_ep.startswith("/"):
-                cam_ep = "/" + cam_ep
-            self.device = f"http://{cam_ip}:{cam_port}{cam_ep}"
-        else:
-            # 2. Nếu không có CAMERA_IP, kiểm tra CAMERA_DEVICE hoặc đối số truyền vào
-            if device is None:
-                device = os.environ.get("CAMERA_DEVICE", 0)
+    def __init__(self, device: Union[str, int] = 0):
+        # Hỗ trợ truyền qua biến môi trường CAMERA_DEVICE
+        env_dev = os.environ.get("CAMERA_DEVICE")
+        if env_dev:
+            device = env_dev
 
-            # Nếu là số nguyên dạng chuỗi ("0", "1") -> ép về int
-            if isinstance(device, str) and device.isdigit():
-                self.device = int(device)
-            else:
-                self.device = device
+        # Nếu là số nguyên dạng chuỗi ("0", "1") -> ép về int
+        if isinstance(device, str) and device.isdigit():
+            self.device = int(device)
+        else:
+            self.device = device
 
         self.cap: Optional[cv2.VideoCapture] = None
         self.frame: Optional[np.ndarray] = None
@@ -47,11 +39,13 @@ class Camera:
         if isinstance(self.device, int):
             # Nếu chạy trên Linux có hỗ trợ V4L2
             self.cap = cv2.VideoCapture(self.device, cv2.CAP_V4L2 if hasattr(cv2, "CAP_V4L2") else cv2.CAP_ANY)
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            self.cap.set(cv2.CAP_PROP_FPS, 30)
         else:
             self.cap = cv2.VideoCapture(self.device)
+
+        # Cấu hình độ phân giải phù hợp cho Pi (640x480 để đạt FPS cao)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        self.cap.set(cv2.CAP_PROP_FPS, 30)
 
         if not self.cap.isOpened():
             print(f"⚠️ Không thể mở camera {self.device}. Sẽ thử lại trong luồng nền...")
