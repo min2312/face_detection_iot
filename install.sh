@@ -20,6 +20,8 @@ if command -v apt-get >/dev/null 2>&1; then
         swig \
         python3-lgpio \
         python3-gpiozero \
+        python3-smbus \
+        i2c-tools \
         libgl1 \
         libglib2.0-0 \
         curl \

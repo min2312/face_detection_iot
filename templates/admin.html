@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard - Smart Locker Manager</title>
+  <title>Admin Dashboard - Quản Lý 4 Ngăn Tủ Smart Locker</title>
   <style>
     :root {
       --primary: #2563eb;
@@ -48,28 +48,28 @@
 
     .grid {
       display: grid;
-      grid-template-columns: 1fr 2fr;
+      grid-template-columns: 1.2fr 1.8fr;
       gap: 20px;
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 950px) {
       .grid { grid-template-columns: 1fr; }
     }
 
     .card {
       background: var(--card-bg);
       border-radius: 12px;
-      padding: 20px;
+      padding: 18px;
       border: 1px solid var(--border);
       box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-      margin-bottom: 20px;
+      margin-bottom: 18px;
     }
 
     .card-title {
       font-size: 1.1rem;
       font-weight: 700;
       color: var(--dark);
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       padding-bottom: 8px;
       border-bottom: 1px solid var(--border);
       display: flex;
@@ -77,182 +77,119 @@
       align-items: center;
     }
 
-    /* Locker detail box */
-    .occupant-preview {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-      margin-bottom: 16px;
+    /* 4 Lockers List in Admin */
+    .admin-locker-item {
       background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
       padding: 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
     }
+    .admin-locker-item.occupied { background: #fffbeb; border-color: #fde68a; }
 
-    .occupant-photo {
-      width: 90px;
-      height: 90px;
-      border-radius: 8px;
-      background: #e2e8f0;
-      object-fit: cover;
-      border: 1px solid var(--border);
-    }
+    .admin-locker-info { font-size: 0.88rem; }
+    .admin-locker-info strong { color: var(--dark); font-size: 0.95rem; }
+    .admin-locker-info div { color: var(--text-muted); font-size: 0.8rem; margin-top: 2px; }
 
-    .occupant-info p { margin: 4px 0; font-size: 0.9rem; }
-    .occupant-info strong { color: var(--dark); }
+    .admin-locker-actions { display: flex; gap: 6px; }
 
-    /* Control buttons */
-    .btn-row { display: flex; flex-direction: column; gap: 10px; }
-    .btn {
-      padding: 12px 16px;
+    .btn-sm {
+      padding: 6px 10px;
       border: none;
-      border-radius: 6px;
-      font-size: 0.95rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
       font-weight: 600;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
       color: white;
       transition: opacity 0.2s;
     }
-    .btn:hover { opacity: 0.9; }
+    .btn-sm:hover { opacity: 0.85; }
     .btn-unlock { background: var(--warning); }
     .btn-lock { background: var(--primary); }
     .btn-release { background: var(--danger); }
-    .btn-secondary { background: #64748b; font-size: 0.85rem; padding: 6px 12px; }
+    .btn-all { padding: 10px 14px; font-size: 0.88rem; margin-top: 10px; }
 
     /* Audit Logs Table */
     .table-container {
-      max-height: 480px;
+      max-height: 520px;
       overflow-y: auto;
       border: 1px solid var(--border);
       border-radius: 8px;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.85rem;
-      text-align: left;
-    }
-
-    th {
-      background: #f1f5f9;
-      color: var(--text-muted);
-      padding: 10px 12px;
-      font-weight: 600;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-
-    td {
-      padding: 10px 12px;
-      border-bottom: 1px solid var(--border);
-      vertical-align: middle;
-    }
-
+    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; text-align: left; }
+    th { background: #f1f5f9; color: var(--text-muted); padding: 10px 12px; font-weight: 600; position: sticky; top: 0; z-index: 10; }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
     tr:hover { background: #f8fafc; }
 
-    .tag {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 700;
-    }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; }
     .tag-deposit { background: #dbeafe; color: #1d4ed8; }
     .tag-withdraw { background: #dcfce7; color: #15803d; }
     .tag-spoof { background: #fee2e2; color: #b91c1c; }
     .tag-unauth { background: #fef3c7; color: #b45309; }
     .tag-admin { background: #f3e8ff; color: #7e22ce; }
 
-    .thumb {
-      width: 38px;
-      height: 38px;
-      border-radius: 4px;
-      object-fit: cover;
-      cursor: pointer;
-    }
-
-    /* Diagnostics */
-    .diag-item {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px dashed var(--border);
-      font-size: 0.88rem;
-    }
-    .diag-item:last-child { border-bottom: none; }
+    .thumb { width: 36px; height: 36px; border-radius: 4px; object-fit: cover; }
+    .diag-item { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px dashed var(--border); font-size: 0.85rem; }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>⚙️ QUẢN TRỊ VIÊN - SMART LOCKER</h1>
+    <h1>⚙️ QUẢN TRỊ VIÊN - 4 NGĂN TỦ SMART LOCKER</h1>
     <a href="/" class="back-btn">&larr; Quay lại Màn hình Kiosk</a>
   </header>
 
   <div class="grid">
     
-    <!-- Cột trái: Điều khiển & Giám sát Tủ -->
+    <!-- Cột trái: Quản trị 4 Ngăn Tủ -->
     <div>
       <div class="card">
         <div class="card-title">
-          <span>📦 Thông Tin Ngăn Tủ Số 1</span>
-          <span id="locker-status-tag" class="tag tag-deposit">ĐANG CẬP NHẬT</span>
+          <span>📦 Quản Lý Điều Khiển 4 Ngăn Tủ</span>
         </div>
 
-        <div id="occupant-box" class="occupant-preview">
-          <img id="occupant-img" class="occupant-photo" src="" alt="Chưa có ảnh" style="display:none;">
-          <div class="occupant-info">
-            <p>Người đang gửi: <strong id="occupant-name">Trống</strong></p>
-            <p>Thời gian gửi: <strong id="deposit-time">-</strong></p>
-          </div>
+        <div id="admin-lockers-list">
+          <!-- Render danh sách 4 tủ -->
         </div>
 
-        <div class="btn-row">
-          <button class="btn btn-unlock" onclick="adminUnlock()">
-            <span>🔓</span> MỞ KHÓA KHẨN CẤP (SERVO)
+        <div style="display:flex; gap:10px; margin-top:12px;">
+          <button class="btn-sm btn-unlock btn-all" style="flex:1;" onclick="adminUnlockAll()">
+            🔓 MỞ KHÓA TẤT CẢ 4 TỦ
           </button>
-          <button class="btn btn-lock" onclick="adminLock()">
-            <span>🔒</span> HẠ CHỐT KHÓA (SERVO)
-          </button>
-          <button class="btn btn-release" onclick="adminRelease()">
-            <span>🗑️</span> CƯỠNG CHẾ GIẢI PHÓNG TỦ
+          <button class="btn-sm btn-lock btn-all" style="flex:1;" onclick="adminLockAll()">
+            🔒 KHÓA TẤT CẢ 4 TỦ
           </button>
         </div>
       </div>
 
       <div class="card">
         <div class="card-title">
-          <span>🛠️ Thông Số Phần Cứng GPIO</span>
+          <span>🛠️ Thông Số Module PCA9685 & GPIO</span>
         </div>
         <div class="diag-item">
           <span>Môi trường chạy:</span>
           <strong id="env-mode">-</strong>
         </div>
         <div class="diag-item">
-          <span>Trạng thái Cửa (MC-38):</span>
-          <strong id="diag-door">-</strong>
+          <span>Giao tiếp Servo:</span>
+          <strong>PCA9685 I2C (Bus 1 - 0x40 - 50Hz)</strong>
         </div>
         <div class="diag-item">
-          <span>Trạng thái Khóa (Servo):</span>
-          <strong id="diag-lock">-</strong>
+          <span>Kênh Servo:</span>
+          <strong>Kênh 0 (Tủ 1) &bull; Kênh 1 (Tủ 2) &bull; Kênh 2 (Tủ 3) &bull; Kênh 3 (Tủ 4)</strong>
         </div>
         <div class="diag-item">
-          <span>Chân Servo Pin:</span>
-          <strong>GPIO 18 (PWM)</strong>
+          <span>Cảm biến MC-38 (GPIO):</span>
+          <strong>GPIO 23 (T1) &bull; GPIO 24 (T2) &bull; GPIO 25 (T3) &bull; GPIO 26 (T4)</strong>
         </div>
         <div class="diag-item">
-          <span>Chân Cảm biến MC-38:</span>
-          <strong>GPIO 23 (Pull-Up)</strong>
-        </div>
-        <div class="diag-item">
-          <span>Chân LED Cảnh báo:</span>
-          <strong>GPIO 17 (Red) & 27 (Green)</strong>
+          <span>Quy tắc đóng chốt:</span>
+          <strong style="color:#16a34a;">Delay đúng 1.0 giây sau khi đóng cửa</strong>
         </div>
       </div>
     </div>
@@ -262,7 +199,7 @@
       <div class="card">
         <div class="card-title">
           <span>📜 Nhật Ký Hoạt Động & Cảnh Báo Giả Mạo</span>
-          <button class="btn btn-secondary" onclick="clearLogs()">Xóa lịch sử</button>
+          <button class="btn-sm" style="background:#64748b;" onclick="clearLogs()">Xóa lịch sử</button>
         </div>
 
         <div class="table-container">
@@ -271,6 +208,7 @@
               <tr>
                 <th>Ảnh</th>
                 <th>Sự kiện</th>
+                <th>Tủ số</th>
                 <th>Người dùng</th>
                 <th>Liveness</th>
                 <th>Thời gian</th>
@@ -278,7 +216,7 @@
               </tr>
             </thead>
             <tbody id="logs-body">
-              <tr><td colspan="6" style="text-align:center; color:#999;">Đang tải nhật ký...</td></tr>
+              <tr><td colspan="7" style="text-align:center; color:#999;">Đang tải nhật ký...</td></tr>
             </tbody>
           </table>
         </div>
@@ -293,35 +231,36 @@
         const res = await fetch('/api/status');
         const data = await res.json();
 
-        // Cập nhật thẻ trạng thái ngăn tủ
-        const statusTag = document.getElementById('locker-status-tag');
-        const occName = document.getElementById('occupant-name');
-        const depTime = document.getElementById('deposit-time');
-        const occImg = document.getElementById('occupant-img');
-
-        if (data.locker.status === 'OCCUPIED') {
-          statusTag.className = 'tag tag-withdraw';
-          statusTag.textContent = 'ĐANG CÓ ĐỒ';
-          occName.textContent = data.locker.occupant_name || 'Không rõ';
-          depTime.textContent = data.locker.deposit_time || '-';
-          if (data.locker.photo_path) {
-            occImg.src = '/faces/' + data.locker.photo_path;
-            occImg.style.display = 'block';
-          } else {
-            occImg.style.display = 'none';
-          }
-        } else {
-          statusTag.className = 'tag tag-deposit';
-          statusTag.textContent = 'TỦ TRỐNG';
-          occName.textContent = 'Không có ai gửi';
-          depTime.textContent = '-';
-          occImg.style.display = 'none';
-        }
-
         // Diagnostics
-        document.getElementById('env-mode').textContent = data.is_real_hardware ? 'Raspberry Pi (GPIO Real)' : 'Mô phỏng (PC Simulation)';
-        document.getElementById('diag-door').textContent = (data.door_state === 'OPEN') ? 'CỬA ĐANG MỞ 🔴' : 'CỬA ĐÃ ĐÓNG 🟢';
-        document.getElementById('diag-lock').textContent = (data.lock_state === 'UNLOCKED') ? 'ĐÃ MỞ KHÓA 🔓' : 'ĐÃ KHÓA CHỐT 🔒';
+        document.getElementById('env-mode').textContent = data.is_real_hardware ? 'Raspberry Pi (PCA9685 + GPIO Real)' : 'Mô phỏng (PC Simulation)';
+
+        // Render 4 ngăn tủ
+        const listContainer = document.getElementById('admin-lockers-list');
+        listContainer.innerHTML = data.lockers.map(l => {
+          const isOcc = (l.status === 'OCCUPIED');
+          const occText = isOcc ? `Người gửi: <strong>${escapeHtml(l.occupant_name || '')}</strong> (${escapeHtml(l.deposit_time || '')})` : 'Trống (Sẵn sàng)';
+          const doorText = (l.door_state === 'OPEN') ? '<span style="color:#dc2626;">Cửa Mở 🔴</span>' : '<span style="color:#16a34a;">Cửa Đóng 🟢</span>';
+          const lockText = (l.lock_state === 'UNLOCKED') ? '<span style="color:#d97706;">Khóa Mở 🔓</span>' : '<span style="color:#16a34a;">Đã Khóa 🔒</span>';
+
+          const releaseBtn = isOcc 
+            ? `<button class="btn-sm btn-release" onclick="adminRelease(${l.id})">Giải phóng</button>` 
+            : '';
+
+          return `
+            <div class="admin-locker-item ${isOcc ? 'occupied' : ''}">
+              <div class="admin-locker-info">
+                <strong>${l.name}</strong> - <span>${isOcc ? '🟠 ĐANG CÓ ĐỒ' : '🟢 TRỐNG'}</span>
+                <div>${occText}</div>
+                <div>${doorText} | ${lockText}</div>
+              </div>
+              <div class="admin-locker-actions">
+                <button class="btn-sm btn-unlock" onclick="adminUnlock(${l.id})">Mở Servo</button>
+                <button class="btn-sm btn-lock" onclick="adminLock(${l.id})">Khóa Servo</button>
+                ${releaseBtn}
+              </div>
+            </div>
+          `;
+        }).join('');
 
       } catch (e) {
         console.error(e);
@@ -335,7 +274,7 @@
         const tbody = document.getElementById('logs-body');
 
         if (logs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#999;">Chưa có nhật ký ghi nhận nào.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#999;">Chưa có nhật ký nào.</td></tr>';
           return;
         }
 
@@ -358,7 +297,8 @@
             <tr>
               <td>${imgHtml}</td>
               <td><span class="tag ${tagClass}">${eventText}</span></td>
-              <td><strong>${escapeHtml(l.user_name || '-')}</strong></td>
+              <td><strong>Tủ ${l.locker_id || '-'}</strong></td>
+              <td>${escapeHtml(l.user_name || '-')}</td>
               <td>${liveScoreText}</td>
               <td>${escapeHtml(l.timestamp)}</td>
               <td>${escapeHtml(l.note || '')}</td>
@@ -371,25 +311,45 @@
       }
     }
 
-    async function adminUnlock() {
-      if (!confirm("Xác nhận mở khóa Servo khẩn cấp?")) return;
-      const res = await fetch('/api/admin/unlock', { method: 'POST' });
+    async function adminUnlock(lid) {
+      const res = await fetch('/api/admin/unlock', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ locker_id: lid })
+      });
       const data = await res.json();
       alert(data.message);
       loadStatus();
       loadLogs();
     }
 
-    async function adminLock() {
-      const res = await fetch('/api/admin/lock', { method: 'POST' });
+    async function adminLock(lid) {
+      const res = await fetch('/api/admin/lock', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ locker_id: lid })
+      });
       const data = await res.json();
       alert(data.message);
       loadStatus();
     }
 
-    async function adminRelease() {
-      if (!confirm("Cảnh báo: Cưỡng chế xóa người gửi và giải phóng ngăn tủ này?")) return;
-      const res = await fetch('/api/admin/release', { method: 'POST' });
+    async function adminUnlockAll() {
+      if (!confirm("Mở khóa khẩn cấp toàn bộ 4 ngăn tủ?")) return;
+      adminUnlock(0);
+    }
+
+    async function adminLockAll() {
+      adminLock(0);
+    }
+
+    async function adminRelease(lid) {
+      if (!confirm(`Cưỡng chế xóa người gửi và giải phóng Tủ số ${lid}?`)) return;
+      const res = await fetch('/api/admin/release', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ locker_id: lid })
+      });
       const data = await res.json();
       alert(data.message);
       loadStatus();
@@ -413,4 +373,3 @@
   </script>
 </body>
 </html>
-

@@ -1,107 +1,71 @@
-# 🔐 HỆ THỐNG SMART LOCKER IOT (TỦ ĐỒ THÔNG MINH)
+# 🔐 HỆ THỐNG SMART LOCKER 4 NGĂN TỦ (PCA9685 & MC-38 & AI FACE)
 
-Hệ thống điều khiển mở khóa tủ đồ thông minh qua nhận diện khuôn mặt kết hợp **Chống giả mạo (Face Anti-Spoofing / Liveness Detection)**, cảm biến từ phát hiện đóng/mở cửa **MC-38**, và động cơ **Servo** đóng vai trò then chốt khóa điện tử.
-
-Hệ thống được thiết kế tối ưu để chạy trực tiếp trên **Raspberry Pi** (Pi 3B+, 4B, 5), đồng thời có chế độ **Mô phỏng (Simulation)** tự động kích hoạt khi chạy trên PC/Laptop để tiện phát triển và test demo.
-
----
-
-## 📌 1. NGUYÊN LÝ HOẠT ĐỘNG & KHÓA LIÊN ĐỘNG AN TOÀN (SAFETY INTERLOCK)
-
-* **Cảm biến từ MC-38**: Đóng vai trò **cảm biến phát hiện hành trình cánh tủ** (Cửa đang khép chặt hay đang mở).
-* **Động cơ Servo**: Đóng vai trò **then chốt / ổ khóa cơ điện tử** (Góc 0° = Khóa chốt, Góc 90° = Mở chốt).
-* **Quy tắc an toàn cơ khí (Safety Interlock)**:
-  1. Khi người dùng xác thực thành công $\rightarrow$ Servo quay mở chốt khóa (90°).
-  2. Người dùng kéo cửa tủ ra $\rightarrow$ Cảm biến từ MC-38 hở mạch $\rightarrow$ Web báo *"Cửa đang mở"*.
-  3. **Trong lúc cửa đang mở, Servo BẮT BUỘC GIỮ NGUYÊN trạng thái mở**, tuyệt đối không tự hạ chốt xuống để tránh làm gãy chốt khi người dùng đẩy cánh cửa vào.
-  4. Chỉ khi người dùng bỏ/lấy đồ xong và **khép chặt cánh cửa vào** $\rightarrow$ MC-38 đóng mạch $\rightarrow$ Servo mới kích hoạt **hạ chốt xuống 0° để khóa lại**.
+Hệ thống điều khiển 4 ngăn tủ thông minh độc lập:
+* **Nhận diện khuôn mặt & Chống giả mạo (Anti-Spoofing)**: Sử dụng **YuNet + SFace + MiniFASNetV2**.
+* **Điều khiển 4 Động cơ Servo**: Sử dụng **Module PCA9685 (I2C 16-channel PWM)** giúp tiết kiệm chân Pi, không bị rung giật (jitter) và cấp nguồn 5V riêng an toàn cho 4 servo.
+* **4 Cảm biến từ phát hiện đóng/mở cửa**: Sử dụng **MC-38** trên 4 chân GPIO độc lập.
+* **Nguyên tắc thời gian & Khóa liên động (Interlock)**:
+  * Khi nhận diện đúng người: **Servo mở chốt TỨC THÌ (0 delay)**.
+  * Khi cửa đang mở: **Servo GIỮ NGUYÊN trạng thái mở** để chống kẹt/gãy chốt.
+  * Khi người dùng đóng sập cửa lại: Cảm biến từ MC-38 báo đóng $\rightarrow$ **Đếm đúng 1.0 giây để cửa ổn định hoàn toàn rồi mới hạ chốt Servo khóa lại**.
 
 ---
 
-## 🔌 2. SƠ ĐỒ ĐẤU DÂY TRÊN RASPBERRY PI (WIRING DIAGRAM)
+## 🔌 1. SƠ ĐỒ ĐẤU DÂY CHI TIẾT (RASPBERRY PI & PCA9685 & MC-38)
 
-| Thiết bị | Chân thiết bị | Chân Raspberry Pi | Số hiệu chân vật lý (Header Pin) | Ghi chú |
+### A. Module PCA9685 (Điều khiển 4 Servo qua I2C)
+| Chân PCA9685 | Kết nối tới | Số hiệu chân Header Raspberry Pi | Ghi chú |
+| :--- | :--- | :--- | :--- |
+| **VCC** | **3.3V Power** | Pin 1 | Nuôi chip PCA9685 |
+| **GND** | **Ground** | Pin 9 | Nối chung mass GND |
+| **SDA** | **GPIO 2 (I2C SDA)** | Pin 3 | Tín hiệu dữ liệu I2C |
+| **SCL** | **GPIO 3 (I2C SCL)** | Pin 5 | Tín hiệu xung nhịp I2C |
+| **V+ (Terminal xanh)** | **Nguồn ngoài 5V - 3A (+)** | Nguồn Adapter rời | **Bắt buộc dùng nguồn rời** nuôi 4 servo |
+| **GND (Terminal xanh)** | **Nguồn ngoài 5V - 3A (-)** | Nguồn Adapter rời | Nối chung GND với Pi |
+| **Kênh 0 (Channel 0)** | **Servo Tủ số 1** | Cắm hàng chân 3 pin kênh 0 | Vàng/Cam (PWM), Đỏ (V+), Nâu/Đen (GND) |
+| **Kênh 1 (Channel 1)** | **Servo Tủ số 2** | Cắm hàng chân 3 pin kênh 1 | |
+| **Kênh 2 (Channel 2)** | **Servo Tủ số 3** | Cắm hàng chân 3 pin kênh 2 | |
+| **Kênh 3 (Channel 3)** | **Servo Tủ số 4** | Cắm hàng chân 3 pin kênh 3 | |
+
+### B. 4 Cảm biến từ MC-38 (Chốt nhận diện đóng/mở cửa)
+| Thiết bị | Dây tín hiệu | Chân Raspberry Pi | Chân vật lý Header | Dây còn lại |
 | :--- | :--- | :--- | :--- | :--- |
-| **Động cơ Servo (SG90 / MG995)** | Dây Đỏ (VCC) | **5V Power** | Pin 2 hoặc Pin 4 | Nên cấp nguồn 5V riêng nếu dùng servo lớn |
-| | Dây Nâu / Đen (GND) | **Ground** | Pin 6 | Nối chung GND với Pi |
-| | Dây Cam / Vàng (Signal) | **GPIO 18 (PWM)** | Pin 12 | Điều khiển góc mở 0° - 90° |
-| **Cảm biến từ MC-38** | Dây 1 | **GPIO 23** | Pin 16 | Cấu hình kéo nội `pull_up=True` |
-| | Dây 2 | **Ground** | Pin 14 | Khi cửa đóng: tiếp xúc GND $\rightarrow$ mức 0 |
-| **Đèn LED Đỏ (Cảnh báo Fake/Lỗi)** | Cực Dương (+) | **GPIO 17** | Pin 11 | Nối qua điện trở 220Ω - 330Ω |
-| | Cực Âm (-) | **Ground** | Pin 9 | |
-| **Đèn LED Xanh (Thành công/Mở)** | Cực Dương (+) | **GPIO 27** | Pin 13 | Nối qua điện trở 220Ω |
-| | Cực Âm (-) | **Ground** | Pin 20 | |
-| **Camera USB** | Cổng USB | Cổng USB 2.0 / 3.0 | Bất kỳ cổng USB nào | Tự động nhận dạng qua V4L2 |
+| **MC-38 Tủ số 1** | Dây 1 | **GPIO 23** | Pin 16 | Nối vào **GND** (Pin 14) |
+| **MC-38 Tủ số 2** | Dây 1 | **GPIO 24** | Pin 18 | Nối vào **GND** (Pin 20) |
+| **MC-38 Tủ số 3** | Dây 1 | **GPIO 25** | Pin 22 | Nối vào **GND** (Pin 25) |
+| **MC-38 Tủ số 4** | Dây 1 | **GPIO 26** | Pin 37 | Nối vào **GND** (Pin 39) |
 
-> [!TIP]
-> Cảm biến từ MC-38 là công tắc tiếp điểm từ (Reed switch). Một nửa gắn cố định trên khung tủ, một nửa chứa nam châm gắn trên cánh cửa. Khi 2 miếng sát nhau (khoảng cách < 1.5 cm) là CỬA ĐÓNG.
+### C. Đèn báo LED & Camera
+* **Đèn LED Đỏ** (Báo lỗi / Fake): Chân dương vào **GPIO 17** (Pin 11) qua trở $220\Omega$, Chân âm vào **GND** (Pin 6).
+* **Đèn LED Xanh** (Báo mở thành công): Chân dương vào **GPIO 27** (Pin 13) qua trở $220\Omega$, Chân âm vào **GND**.
+* **Camera**: Stream từ Laptop (qua Wi-Fi) hoặc cắm USB trực tiếp vào Pi.
 
 ---
 
-## 🚀 3. HƯỚNG DẪN CÀI ĐẶT TRÊN RASPBERRY PI
+## ⚙️ 2. BẬT I2C TRÊN RASPBERRY PI
 
-### Bước 1: Sao chép thư mục `ck_iot` sang Raspberry Pi
-Bạn có thể copy thư mục `ck_iot` sang thẻ nhớ Raspberry Pi hoặc clone qua Git/SCP.
-
-### Bước 2: Cấp quyền và chạy script cài đặt tự động
-Mở terminal trên Raspberry Pi và chạy:
+Trước khi chạy, hãy đảm bảo I2C đã được kích hoạt trên Raspberry Pi:
 ```bash
-cd ck_iot
-chmod +x install.sh run.sh download_models.sh
-./install.sh
+sudo raspi-config
+# Chọn: Interface Options -> I2C -> Yes
 ```
-
-Script `install.sh` sẽ tự động:
-1. Cài các gói hệ thống Linux cần thiết (`libgl1`, `v4l-utils`, `curl`).
-2. Tạo môi trường ảo `.venv` chuẩn PEP 668 của Debian/Pi OS.
-3. Cài các thư viện Python: `Flask`, `OpenCV`, `NumPy`, `gpiozero`, `lgpio`.
-4. Tải 3 model AI:
-   - `face_detection_yunet_2023mar.onnx` (Phát hiện mặt)
-   - `face_recognition_sface_2021dec.onnx` (Nhận diện mặt)
-   - `MiniFASNetV2.onnx` (Chống giả mạo liveness / anti-spoofing)
-
-### Bước 3: Khởi chạy hệ thống
+Kiểm tra xem Pi đã nhận module PCA9685 chưa:
 ```bash
+sudo i2cdetect -y 1
+```
+*(Nếu thấy địa chỉ `40` hoặc `70` hiện lên bảng ma trận là đã kết nối phần cứng chuẩn 100%).*
+
+---
+
+## 🚀 3. HƯỚNG DẪN CHẠY HỆ THỐNG
+
+### Cập nhật và chạy trên Raspberry Pi:
+```bash
+git pull origin main
 ./run.sh
 ```
 
-Mở trình duyệt trên điện thoại hoặc máy tính trong cùng mạng LAN:
-* **Giao diện Kiosk Người dùng**: `http://<IP_RASPBERRY_PI>:5000`
-* **Giao diện Quản trị Admin**: `http://<IP_RASPBERRY_PI>:5000/admin`
-*(Tài khoản admin mặc định: `admin` / `admin123`)*
-
----
-
-## 💻 4. CHẠY VÀ TEST THỬ TRÊN MÁY TÍNH (PC / WINDOWS / MAC)
-
-Nếu bạn chưa cắm Raspberry Pi và muốn chạy thử trước trên Laptop/PC:
-```bash
-# Trong môi trường Python
-pip install -r requirements.txt
-python download_models.py
-python app.py
-```
-* Hệ thống sẽ tự phát hiện đang chạy ngoài Raspberry Pi và tự động kích hoạt **Chế độ Mô phỏng (Simulation)**.
-* Trên giao diện web sẽ có sẵn bảng nút:
-  - `🚪 Giả lập Mở Cửa (Hở từ)`
-  - `🚪 Giả lập Đóng Cửa (Chạm từ)`
-  Giúp bạn test hoàn chỉnh quy trình Cất đồ, Lấy đồ, và Khóa an toàn trước khi nối dây mạch thật!
-
----
-
-## 🎯 5. KỊCH BẢN DEMO ĐỒ ÁN
-
-1. **Test Chống Giả Mạo (Anti-Spoofing)**:
-   - Bấm **CẤT ĐỒ**.
-   - Đưa màn hình điện thoại có ảnh chụp khuôn mặt trước camera $\rightarrow$ Hệ thống hiện viền đỏ **🚨 SPOOF (SPOOF_SCREEN)** và từ chối mở cửa.
-   - Đưa mặt người thật vào $\rightarrow$ Hệ thống báo **👤 Người thật**, lưu dữ liệu và mở khóa Servo ngay lập tức.
-2. **Test Khóa Liên Động Cửa (MC-38 + Servo)**:
-   - Sau khi mở servo, kéo mở cửa tủ ra $\rightarrow$ Web lập tức hiển thị **CỬA ĐANG MỞ** màu đỏ, Servo giữ nguyên vị trí mở.
-   - Người dùng bỏ đồ vào tủ, sau đó khép cửa tủ lại $\rightarrow$ Cảm biến từ MC-38 tiếp xúc $\rightarrow$ Servo lập tức hạ chốt xuống khóa lại, chuyển trạng thái tủ sang **ĐANG CÓ ĐỒ**.
-3. **Test Lấy Đồ**:
-   - Bấm **QUÉT MẶT LẤY ĐỒ**.
-   - Nếu người khác đứng vào $\rightarrow$ Hệ thống báo **❌ Sai khuôn mặt**, không mở.
-   - Đúng người đã gửi cất đồ đứng vào $\rightarrow$ Hệ thống xác thực thành công, mở chốt servo cho lấy đồ, sau khi đóng cửa lại thì giải phóng tủ về trạng thái **TRỐNG (AVAILABLE)**.
-4. **Test Quản trị Admin**:
-   - Truy cập `/admin` để xem danh sách lịch sử đóng/mở tủ, ảnh chụp người gửi, các lần phát hiện ảnh giả mạo, và nút **Mở khóa khẩn cấp**.
-
+### Mở trình duyệt:
+* **Giao diện Kiosk Người dùng (4 Tủ)**: `http://<IP_PI>:5000`
+* **Giao diện Quản trị Admin**: `http://<IP_PI>:5000/admin`
+*(Mặc định: `admin` / `admin123`)*

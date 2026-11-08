@@ -1,13 +1,7 @@
 """
-app.py - Web Server Flask cho Hệ thống Smart Locker
-Cung cấp:
-- Giao diện Kiosk Người dùng (Cất đồ / Lấy đồ)
-- Giao diện Quản trị Admin (Giám sát ngăn tủ, Mở khóa khẩn cấp, Xem ảnh & Nhật ký)
-- Luồng Video MJPEG thời gian thực có nhãn Anti-Spoofing & Nhận diện
-- API điều khiển và SSE (Server-Sent Events) đồng bộ thời gian thực
+app.py - Web Server Flask cho Hệ thống Smart Locker (Hỗ trợ 4 Ngăn Tủ & PCA9685)
 """
 
-import io
 import json
 import os
 import signal
@@ -35,31 +29,49 @@ from locker_manager import LockerManager, LockerState
 from recognition import FaceEngine
 
 BASE_DIR = Path(__file__).resolve().parent
+
+# Tự động đọc cấu hình từ file .env nếu có
+env_path = BASE_DIR / ".env"
+if env_path.exists():
+    with open(env_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip("'\"")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+
 app = Flask(__name__, template_folder=str(BASE_DIR / "templates"), static_folder=str(BASE_DIR / "static"))
 app.secret_key = os.environ.get("SECRET_KEY", "smart-locker-secret-2026")
 
 # Khởi tạo các thành phần cốt lõi
 print("=" * 60)
-print("🚀 ĐANG KHỞI TẠO CÁC DỊCH VỤ HỆ THỐNG SMART LOCKER...")
+print("🚀 ĐANG KHỞI TẠO CÁC DỊCH VỤ HỆ THỐNG SMART LOCKER (4 TỦ)...")
 print("=" * 60)
 
 db = LockerDatabase(str(BASE_DIR / "data"))
 
-servo_pin = int(os.environ.get("SERVO_PIN", "18"))
-door_sensor_pin = int(os.environ.get("DOOR_SENSOR_PIN", "23"))
-red_led_pin = int(os.environ.get("RED_LED_PIN", "17"))
-green_led_pin = int(os.environ.get("GREEN_LED_PIN", "27"))
+# 4 chân GPIO cảm biến từ MC-38
+door_pins = {
+    1: int(os.environ.get("DOOR_1_PIN", "23")),
+    2: int(os.environ.get("DOOR_2_PIN", "24")),
+    3: int(os.environ.get("DOOR_3_PIN", "25")),
+    4: int(os.environ.get("DOOR_4_PIN", "26")),
+}
 
 gpio = HardwareController(
-    servo_pin=servo_pin,
-    door_sensor_pin=door_sensor_pin,
-    red_led_pin=red_led_pin,
-    green_led_pin=green_led_pin,
+    pca_bus=int(os.environ.get("PCA_BUS", "1")),
+    pca_addr=int(os.environ.get("PCA_ADDR", "0x40"), 16),
+    door_pins=door_pins,
+    red_led_pin=int(os.environ.get("RED_LED_PIN", "17")),
+    green_led_pin=int(os.environ.get("GREEN_LED_PIN", "27")),
 )
 
-camera = Camera(os.environ.get("CAMERA_DEVICE", "0"))
+camera = Camera()
 engine = FaceEngine(models_dir=str(BASE_DIR / "models"))
-manager = LockerManager(camera=camera, engine=engine, gpio=gpio, db=db, locker_id=1)
+manager = LockerManager(engine=engine, gpio=gpio, db=db)
 
 # Khởi động luồng đọc camera
 camera.start()
@@ -85,10 +97,11 @@ def _video_processing_worker():
                 continue
 
             is_active = (manager.current_state in (LockerState.DEPOSIT_SCANNING, LockerState.WITHDRAW_SCANNING))
+
             target_emb = None
             target_name = ""
-            if manager.current_state == LockerState.WITHDRAW_SCANNING:
-                locker = db.get_locker(manager.locker_id)
+            if manager.current_state == LockerState.WITHDRAW_SCANNING and manager.active_locker_id:
+                locker = db.get_locker(manager.active_locker_id)
                 target_emb = locker.get("embedding")
                 target_name = locker.get("occupant_name", "")
 
@@ -106,7 +119,7 @@ def _video_processing_worker():
 
 threading.Thread(target=_video_processing_worker, daemon=True).start()
 
-print("✅ Toàn bộ dịch vụ đã khởi động thành công!")
+print("✅ Toàn bộ dịch vụ 4 Tủ đã khởi động thành công!")
 print("=" * 60)
 
 
@@ -157,22 +170,23 @@ def get_face_photo(filename):
 
 @app.route("/api/status")
 def api_status():
-    """Lấy trạng thái chi tiết thời gian thực."""
+    """Lấy trạng thái chi tiết thời gian thực của cả 4 ngăn tủ."""
     return jsonify(manager.get_full_status())
 
 
 @app.route("/api/action/deposit", methods=["POST"])
 def action_deposit():
-    """Yêu cầu bắt đầu Cất Đồ."""
+    """Yêu cầu bắt đầu Cất Đồ (tự động chọn tủ trống hoặc chỉ định số tủ)."""
     data = request.get_json(silent=True) or request.form
     name = data.get("name", "").strip() if data else ""
-    ok, msg = manager.start_deposit(name)
+    locker_id = int(data.get("locker_id", 0)) if data and data.get("locker_id") else None
+    ok, msg = manager.start_deposit(name, target_locker_id=locker_id)
     return jsonify({"ok": ok, "message": msg})
 
 
 @app.route("/api/action/withdraw", methods=["POST"])
 def action_withdraw():
-    """Yêu cầu bắt đầu Lấy Đồ."""
+    """Yêu cầu bắt đầu Lấy Đồ (tự động nhận diện ngăn tủ của người dùng)."""
     ok, msg = manager.start_withdraw()
     return jsonify({"ok": ok, "message": msg})
 
@@ -199,23 +213,29 @@ def admin_login():
 
 @app.route("/api/admin/unlock", methods=["POST"])
 def admin_unlock():
-    manager.admin_emergency_unlock()
-    return jsonify({"ok": True, "message": "Đã mở khóa khẩn cấp thành công."})
+    data = request.get_json(silent=True) or request.form
+    locker_id = int(data.get("locker_id", 0)) if data else 0
+    manager.admin_emergency_unlock(locker_id)
+    return jsonify({"ok": True, "message": f"Đã mở khóa khẩn cấp Tủ {locker_id if locker_id else 'TẤT CẢ'}."})
 
 
 @app.route("/api/admin/lock", methods=["POST"])
 def admin_lock():
-    res = manager.admin_force_lock()
-    return jsonify({"ok": res, "message": "Đã ép đóng chốt khóa." if res else "Không thể khóa do cửa đang mở!"})
+    data = request.get_json(silent=True) or request.form
+    locker_id = int(data.get("locker_id", 0)) if data else 0
+    manager.admin_force_lock(locker_id)
+    return jsonify({"ok": True, "message": f"Đã ép đóng chốt khóa Tủ {locker_id if locker_id else 'TẤT CẢ'}."})
 
 
 @app.route("/api/admin/release", methods=["POST"])
 def admin_release():
     """Admin cưỡng chế giải phóng tủ."""
-    db.release_locker(manager.locker_id)
+    data = request.get_json(silent=True) or request.form
+    locker_id = int(data.get("locker_id", 1)) if data else 1
+    db.release_locker(locker_id)
     manager.reset_to_idle()
-    db.log_event("ADMIN_UNLOCK", manager.locker_id, note="Admin giải phóng tủ cưỡng chế")
-    return jsonify({"ok": True, "message": "Đã giải phóng ngăn tủ."})
+    db.log_event("ADMIN_UNLOCK", locker_id, note=f"Admin cưỡng chế giải phóng Tủ {locker_id}")
+    return jsonify({"ok": True, "message": f"Đã giải phóng ngăn Tủ số {locker_id}."})
 
 
 @app.route("/api/admin/logs")
@@ -230,15 +250,16 @@ def clear_logs():
     return jsonify({"ok": True, "message": "Đã xóa toàn bộ nhật ký."})
 
 
-# ── API GIẢ LẬP PHẦN CỨNG (CHO TEST TRÊN PC) ──────────────────────────
+# ── API GIẢ LẬP PHẦN CỨNG 4 TỦ (CHO TEST TRÊN PC) ─────────────────────
 
 @app.route("/api/simulate/door", methods=["POST"])
 def simulate_door():
-    """Cho phép nhấn nút trên Web để mô phỏng mở hoặc đóng cửa tủ."""
+    """Cho phép nhấn nút trên Web để mô phỏng mở/đóng cửa Tủ 1..4."""
     data = request.get_json(silent=True) or request.form
+    locker_id = int(data.get("locker_id", 1)) if data else 1
     state = data.get("state", "CLOSED").upper()
-    gpio.simulate_set_door(state)
-    return jsonify({"ok": True, "door_state": gpio.door_state})
+    gpio.simulate_set_door(locker_id, state)
+    return jsonify({"ok": True, "locker_id": locker_id, "door_state": gpio.door_states.get(locker_id)})
 
 
 # ── DỌN DẸP KHI THOÁT ────────────────────────────────────────────────
@@ -255,6 +276,5 @@ signal.signal(signal.SIGTERM, lambda s, f: (cleanup_all(), sys.exit(0)))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
-    print(f"🌐 Server Smart Locker đang chạy tại http://0.0.0.0:{port}")
+    print(f"🌐 Server Smart Locker 4 Tủ đang chạy tại http://0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, threaded=True, debug=False)
-

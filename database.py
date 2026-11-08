@@ -1,11 +1,12 @@
 """
-database.py - Quản lý cơ sở dữ liệu SQLite cho Hệ thống Smart Locker
-Lưu trữ thông tin ngăn tủ, vector khuôn mặt người gửi đồ, lịch sử đóng/mở và ảnh log.
+database.py - Quản lý cơ sở dữ liệu SQLite cho Hệ thống Smart Locker (Hỗ trợ 4 Ngăn Tủ)
+Lưu trữ thông tin 4 ngăn tủ, vector khuôn mặt người gửi đồ, lịch sử đóng/mở và ảnh log.
 """
 
 from datetime import datetime
 from pathlib import Path
 import sqlite3
+from typing import List, Optional, Tuple
 import numpy as np
 
 
@@ -32,7 +33,7 @@ class LockerDatabase:
         with self._get_connection() as conn:
             cur = conn.cursor()
 
-            # Bảng quản lý ngăn tủ (mặc định hỗ trợ Ngăn tủ 1, có thể mở rộng nhiều ngăn)
+            # Bảng quản lý 4 ngăn tủ độc lập
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS lockers (
                     id INTEGER PRIMARY KEY,
@@ -49,7 +50,7 @@ class LockerDatabase:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS audit_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    event_type TEXT NOT NULL, -- 'DEPOSIT', 'WITHDRAW', 'SPOOF_ATTEMPT', 'UNAUTHORIZED', 'ADMIN_UNLOCK'
+                    event_type TEXT NOT NULL, -- 'DEPOSIT', 'WITHDRAW', 'SPOOF_DEPOSIT', 'SPOOF_WITHDRAW', 'UNAUTHORIZED', 'ADMIN_UNLOCK'
                     locker_id INTEGER,
                     user_name TEXT,
                     similarity REAL DEFAULT 0.0,
@@ -69,12 +70,14 @@ class LockerDatabase:
                 )
             """)
 
-            # Khởi tạo ngăn tủ số 1 mặc định nếu chưa có
-            cur.execute("SELECT COUNT(*) FROM lockers WHERE id = 1")
-            if cur.fetchone()[0] == 0:
-                cur.execute(
-                    "INSERT INTO lockers (id, name, status) VALUES (1, 'Tủ số 1', 'AVAILABLE')"
-                )
+            # Khởi tạo 4 ngăn tủ mặc định (Tủ số 1 đến Tủ số 4)
+            for i in range(1, 5):
+                cur.execute("SELECT COUNT(*) FROM lockers WHERE id = ?", (i,))
+                if cur.fetchone()[0] == 0:
+                    cur.execute(
+                        "INSERT INTO lockers (id, name, status) VALUES (?, ?, 'AVAILABLE')",
+                        (i, f"Tủ số {i}")
+                    )
 
             # Khởi tạo tài khoản admin mặc định: admin / admin123
             cur.execute("SELECT COUNT(*) FROM admin_users WHERE username = 'admin'")
@@ -85,10 +88,10 @@ class LockerDatabase:
 
             conn.commit()
 
-    # ── QUẢN LÝ NGĂN TỦ ──────────────────────────────────────────────────
+    # ── QUẢN LÝ 4 NGĂN TỦ ────────────────────────────────────────────────
 
-    def get_locker(self, locker_id: int = 1) -> dict:
-        """Lấy thông tin chi tiết một ngăn tủ."""
+    def get_locker(self, locker_id: int) -> dict:
+        """Lấy thông tin chi tiết một ngăn tủ theo ID."""
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute("SELECT * FROM lockers WHERE id = ?", (locker_id,))
@@ -96,12 +99,50 @@ class LockerDatabase:
             if not row:
                 return {}
             data = dict(row)
-            # Chuyển embedding BLOB thành numpy array
             if data.get("occupant_embedding"):
                 data["embedding"] = np.frombuffer(data["occupant_embedding"], dtype=np.float32)
             else:
                 data["embedding"] = None
             return data
+
+    def get_all_lockers(self) -> List[dict]:
+        """Lấy danh sách cả 4 ngăn tủ."""
+        lockers = []
+        for i in range(1, 5):
+            lockers.append(self.get_locker(i))
+        return lockers
+
+    def get_first_available_locker(self) -> Optional[dict]:
+        """Tìm ngăn tủ trống đầu tiên (Tủ 1 -> 4)."""
+        for i in range(1, 5):
+            l = self.get_locker(i)
+            if l.get("status") == "AVAILABLE":
+                return l
+        return None
+
+    def find_occupied_locker_by_face(
+        self,
+        engine,
+        feature: np.ndarray,
+        threshold: float = 0.363
+    ) -> Tuple[Optional[dict], float]:
+        """
+        Tự động so khớp vector khuôn mặt với TẤT CẢ các ngăn tủ đang có người gửi.
+        Trả về (ngăn_tủ_khớp, điểm_tương_đồng).
+        """
+        best_locker = None
+        best_score = -1.0
+
+        for i in range(1, 5):
+            l = self.get_locker(i)
+            if l.get("status") == "OCCUPIED" and l.get("embedding") is not None:
+                score = engine.compute_similarity(feature, l["embedding"])
+                if score > best_score:
+                    best_score = score
+                    if score >= threshold:
+                        best_locker = l
+
+        return best_locker, best_score
 
     def occupy_locker(
         self,
@@ -155,7 +196,6 @@ class LockerDatabase:
         photo_path: str = None,
         note: str = ""
     ):
-        """Ghi nhận nhật ký sự kiện vào cơ sở dữ liệu."""
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute("""
@@ -167,7 +207,6 @@ class LockerDatabase:
             conn.commit()
 
     def get_recent_logs(self, limit: int = 50) -> list:
-        """Lấy danh sách log gần nhất."""
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute("""
@@ -180,7 +219,6 @@ class LockerDatabase:
             return [dict(row) for row in cur.fetchall()]
 
     def clear_logs(self):
-        """Xóa toàn bộ lịch sử log."""
         with self._get_connection() as conn:
             conn.execute("DELETE FROM audit_logs")
             conn.commit()
@@ -188,7 +226,6 @@ class LockerDatabase:
     # ── QUẢN LÝ ADMIN ────────────────────────────────────────────────────
 
     def verify_admin(self, username: str, password: str) -> bool:
-        """Kiểm tra tài khoản và mật khẩu admin."""
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute(
@@ -200,7 +237,6 @@ class LockerDatabase:
         return False
 
     def change_admin_password(self, username: str, new_password: str) -> bool:
-        """Đổi mật khẩu tài khoản admin."""
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute(
@@ -209,4 +245,3 @@ class LockerDatabase:
             )
             conn.commit()
             return cur.rowcount > 0
-
