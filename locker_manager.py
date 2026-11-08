@@ -215,6 +215,29 @@ class LockerManager:
                 return
 
             if best_face_data is not None:
+                # ── KIỂM TRA CHÍNH SÁCH "1 NGƯỜI = 1 TỦ DUY NHẤT" ──────────────
+                existing_locker, existing_score = self.db.find_occupied_locker_by_face(
+                    self.engine,
+                    best_face_data["feature"],
+                    threshold=0.363
+                )
+                if existing_locker is not None:
+                    ex_lid = existing_locker["id"]
+                    ex_name = existing_locker.get("occupant_name", "Khách")
+                    self.current_state = LockerState.ERROR
+                    self.state_message = f"⚠️ Quý khách ({ex_name}) đang gửi đồ ở Tủ số {ex_lid} rồi! Mỗi người chỉ được dùng 1 tủ."
+                    self.gpio.flash_red(2.5)
+                    print(f"⚠️ [Deposit Từ chối] Khuôn mặt đã gửi tại Tủ {ex_lid} (Độ tương đồng: {existing_score:.2f})!", flush=True)
+                    self.db.log_event(
+                        "DEPOSIT_REJECTED",
+                        lid,
+                        self.current_user_name,
+                        liveness_score=best_face_data["live_score"],
+                        note=f"Từ chối: Đang giữ Tủ số {ex_lid}"
+                    )
+                    threading.Timer(4.5, self.reset_to_idle).start()
+                    return
+
                 photo_path = self._save_event_photo(best_frame, f"deposit_T{lid}_{self.current_user_name}")
 
                 # Lưu vào database
