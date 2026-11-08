@@ -150,6 +150,22 @@ class HardwareController:
             4: int(os.environ.get("SERVO_4_CHANNEL", "3")),
         }
 
+        # Góc đóng khóa (mặc định 0°, có thể đổi nếu tủ nào bị lắp ngược chiều)
+        self.servo_lock_angles = {
+            1: float(os.environ.get("SERVO_1_LOCK_ANGLE", "0")),
+            2: float(os.environ.get("SERVO_2_LOCK_ANGLE", "0")),
+            3: float(os.environ.get("SERVO_3_LOCK_ANGLE", "0")),
+            4: float(os.environ.get("SERVO_4_LOCK_ANGLE", "0")),
+        }
+
+        # Góc mở khóa tùy chỉnh cho từng tủ (0° - 180°), mặc định 90° nếu không cấu hình
+        self.servo_unlock_angles = {
+            1: float(os.environ.get("SERVO_1_UNLOCK_ANGLE", "90")),
+            2: float(os.environ.get("SERVO_2_UNLOCK_ANGLE", "90")),
+            3: float(os.environ.get("SERVO_3_UNLOCK_ANGLE", "90")),
+            4: float(os.environ.get("SERVO_4_UNLOCK_ANGLE", "90")),
+        }
+
         # Trạng thái 4 ngăn tủ
         self.lock_states: Dict[int, str] = {i: "LOCKED" for i in range(1, 5)}
         self.door_states: Dict[int, str] = {i: "CLOSED" for i in range(1, 5)}
@@ -246,10 +262,11 @@ class HardwareController:
 
             self.lock_states[locker_id] = "UNLOCKED"
             ch = self.servo_channels.get(locker_id, 0)
-            print(f"🔓 [SERVO Tủ {locker_id}] MỞ KHÓA TỨC THÌ (PCA9685 Kênh {ch} -> Góc 90°)", flush=True)
+            open_angle = self.servo_unlock_angles.get(locker_id, 90.0)
+            print(f"🔓 [SERVO Tủ {locker_id}] MỞ KHÓA TỨC THÌ (PCA9685 Kênh {ch} -> Góc {open_angle}°)", flush=True)
 
             if self.is_real_hardware and self.pca:
-                self.pca.set_servo_angle(ch, 120.0)
+                self.pca.set_servo_angle(ch, open_angle)
 
             if self.green_led:
                 self.green_led.on()
@@ -268,10 +285,11 @@ class HardwareController:
 
             self.lock_states[locker_id] = "LOCKED"
             ch = self.servo_channels.get(locker_id, 0)
-            print(f"🔒 [SERVO Tủ {locker_id}] Hạ chốt khóa an toàn (PCA9685 Kênh {ch} -> Góc 0°)", flush=True)
+            lock_angle = self.servo_lock_angles.get(locker_id, 0.0)
+            print(f"🔒 [SERVO Tủ {locker_id}] Hạ chốt khóa an toàn (PCA9685 Kênh {ch} -> Góc {lock_angle}°)", flush=True)
 
             if self.is_real_hardware and self.pca:
-                self.pca.set_servo_angle(ch, 0.0)
+                self.pca.set_servo_angle(ch, lock_angle)
 
         return True
 
