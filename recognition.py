@@ -16,10 +16,17 @@ from anti_spoof import AntiSpoofDetector
 class FaceEngine:
     def __init__(
         self,
-        sim_threshold: float = 0.363,
+        sim_threshold: float = 0.50,
         liveness_threshold: float = 0.70,
         models_dir: str = None
     ):
+        import os
+        env_thresh = os.environ.get("FACE_THRESHOLD")
+        if env_thresh:
+            try:
+                sim_threshold = float(env_thresh)
+            except ValueError:
+                pass
         if models_dir is None:
             base_dir = Path(__file__).resolve().parent
             models_dir = str(base_dir / "models")

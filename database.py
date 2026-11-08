@@ -124,12 +124,15 @@ class LockerDatabase:
         self,
         engine,
         feature: np.ndarray,
-        threshold: float = 0.363
+        threshold: Optional[float] = None
     ) -> Tuple[Optional[dict], float]:
         """
         Tự động so khớp vector khuôn mặt với TẤT CẢ các ngăn tủ đang có người gửi.
         Trả về (ngăn_tủ_khớp, điểm_tương_đồng).
         """
+        if threshold is None:
+            threshold = getattr(engine, "sim_threshold", 0.50)
+
         best_locker = None
         best_score = -1.0
 

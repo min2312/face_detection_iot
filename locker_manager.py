@@ -203,7 +203,7 @@ class LockerManager:
 
             # Người thật (Real Face)
             consecutive_real += 1
-            if consecutive_real >= 2 and analysis["feature"] is not None:
+            if consecutive_real >= 4 and analysis["feature"] is not None:
                 best_face_data = analysis
                 best_frame = analysis["raw_frame"]
                 break
@@ -219,7 +219,7 @@ class LockerManager:
                 existing_locker, existing_score = self.db.find_occupied_locker_by_face(
                     self.engine,
                     best_face_data["feature"],
-                    threshold=0.363
+                    threshold=self.engine.sim_threshold
                 )
                 if existing_locker is not None:
                     ex_lid = existing_locker["id"]
@@ -304,17 +304,21 @@ class LockerManager:
             # Mặt thật -> Tự động so khớp với tất cả các tủ đang có người gửi
             feature = analysis.get("feature")
             if feature is not None:
-                l, score = self.db.find_occupied_locker_by_face(self.engine, feature, threshold=0.363)
+                l, score = self.db.find_occupied_locker_by_face(
+                    self.engine,
+                    feature,
+                    threshold=self.engine.sim_threshold
+                )
                 if l is not None:
                     consecutive_match += 1
                     matched_locker = l
-                    if consecutive_match >= 2:
+                    if consecutive_match >= 4:  # Đòi hỏi giữ mặt ổn định ~0.4s để nhận diện vững chắc
                         matched_face = analysis
                         matched_frame = analysis["raw_frame"]
                         break
                 else:
                     consecutive_match = 0
-                    self.state_message = f"❌ Không tìm thấy đồ của bạn trong các ngăn tủ (Độ khớp tối đa: {score:.2f})!"
+                    self.state_message = f"❌ Không tìm thấy đồ của bạn trong các ngăn tủ (Độ khớp: {score:.2f} < {self.engine.sim_threshold:.2f})!"
                     self.gpio.flash_red(0.5)
 
             time.sleep(0.08)
