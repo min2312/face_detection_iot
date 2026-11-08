@@ -33,20 +33,6 @@ from locker_manager import LockerManager, LockerState
 from recognition import FaceEngine
 
 BASE_DIR = Path(__file__).resolve().parent
-
-# Tự động đọc cấu hình từ file .env nếu có
-env_path = BASE_DIR / ".env"
-if env_path.exists():
-    with open(env_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                k = k.strip()
-                v = v.strip().strip("'\"")
-                if k and k not in os.environ:
-                    os.environ[k] = v
-
 app = Flask(__name__, template_folder=str(BASE_DIR / "templates"), static_folder=str(BASE_DIR / "static"))
 app.secret_key = os.environ.get("SECRET_KEY", "smart-locker-secret-2026")
 

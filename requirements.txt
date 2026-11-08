@@ -3,7 +3,7 @@ Flask>=3.0.0
 numpy>=1.24.0,<3.0.0
 opencv-python-headless>=4.8.0
 
-# Thư viện điều khiển GPIO trên Raspberry Pi (chỉ cài trên Linux/Pi)
+# Điều khiển GPIO
 gpiozero>=2.0
-lgpio>=0.2.2.0; sys_platform == 'linux'
-
+# Lưu ý: Trên Raspberry Pi OS, thư viện lgpio nên cài qua apt (tránh lỗi thiếu swig khi build từ source):
+# sudo apt install -y python3-lgpio swig
