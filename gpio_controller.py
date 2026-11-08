@@ -113,8 +113,13 @@ class HardwareController:
         else:
             self.door_pins = door_pins
 
-        # Kênh PCA9685 cho 4 Servo (Tủ 1 -> Kênh 0, Tủ 2 -> Kênh 1, ...)
-        self.servo_channels = {1: 0, 2: 1, 3: 2, 4: 3}
+        # Kênh PCA9685 cho 4 Servo (Có thể cắm vào bất kỳ kênh nào 0-15 và chỉnh trong .env)
+        self.servo_channels = {
+            1: int(os.environ.get("SERVO_1_CHANNEL", "0")),
+            2: int(os.environ.get("SERVO_2_CHANNEL", "1")),
+            3: int(os.environ.get("SERVO_3_CHANNEL", "2")),
+            4: int(os.environ.get("SERVO_4_CHANNEL", "3")),
+        }
 
         # Trạng thái 4 ngăn tủ
         self.lock_states: Dict[int, str] = {i: "LOCKED" for i in range(1, 5)}
