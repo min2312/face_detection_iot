@@ -18,22 +18,28 @@ if [ -f "$PROJECT_DIR/.env" ]; then
     set +o allexport
 fi
 
-# Cấu hình chân GPIO mặc định (có thể thay đổi tại đây hoặc truyền qua biến môi trường)
-export SERVO_PIN="${SERVO_PIN:-18}"
-export DOOR_SENSOR_PIN="${DOOR_SENSOR_PIN:-23}"
-export RED_LED_PIN="${RED_LED_PIN:-17}"
-export GREEN_LED_PIN="${GREEN_LED_PIN:-27}"
-export CAMERA_DEVICE="${CAMERA_DEVICE:-0}"
-export PORT="${PORT:-5000}"
+# Cấu hình Camera: Tự động ghép CAMERA_IP (Webcam laptop) hoặc dùng USB camera
+if [ -n "${CAMERA_IP:-}" ]; then
+    export CAMERA_DEVICE="http://${CAMERA_IP}:${CAMERA_PORT:-5000}${CAMERA_ENDPOINT:-/video}"
+else
+    export CAMERA_DEVICE="${CAMERA_DEVICE:-0}"
+fi
+
+export PORT="${PORT:-8080}"
 
 echo "=========================================================="
-echo "🚀 KHỞI ĐỘNG HỆ THỐNG SMART LOCKER IOT"
-echo "📷 Camera Device     : $CAMERA_DEVICE"
-echo "⚙️  Servo Pin (Lock)  : GPIO $SERVO_PIN"
-echo "🧲 Cảm biến từ MC-38 : GPIO $DOOR_SENSOR_PIN"
-echo "🔴 Red LED Pin       : GPIO $RED_LED_PIN"
-echo "🟢 Green LED Pin     : GPIO $GREEN_LED_PIN"
-echo "🌐 Web Server Port   : $PORT"
+echo "🚀 KHỞI ĐỘNG HỆ THỐNG SMART LOCKER IOT (4 NGĂN TỦ)"
+if [ -n "${CAMERA_IP:-}" ]; then
+    echo "📷 Camera Stream (Laptop) : $CAMERA_DEVICE"
+else
+    echo "📷 Camera USB Device      : $CAMERA_DEVICE"
+fi
+echo "⚙️  I2C PCA9685 Driver     : Bus ${PCA_BUS:-1}, Addr ${PCA_ADDR:-0x40}"
+echo "🕹️  Servo Channels (4 Tủ)  : Tủ 1 -> Ch${SERVO_1_CHANNEL:-0}, Tủ 2 -> Ch${SERVO_2_CHANNEL:-1}, Tủ 3 -> Ch${SERVO_3_CHANNEL:-2}, Tủ 4 -> Ch${SERVO_4_CHANNEL:-3}"
+echo "🧲 Cảm biến từ MC-38      : GPIO ${DOOR_1_PIN:-23}, ${DOOR_2_PIN:-24}, ${DOOR_3_PIN:-25}, ${DOOR_4_PIN:-26}"
+echo "🔴 Red LED Pin            : GPIO ${RED_LED_PIN:-17}"
+echo "🟢 Green LED Pin          : GPIO ${GREEN_LED_PIN:-27}"
+echo "🌐 Web Server Port        : $PORT"
 echo "=========================================================="
 
 MY_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
